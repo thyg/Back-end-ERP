@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    001 - Initial Schema Setup
+    Treasury Module - RT-ComOps ERP
+    
+    This changelog creates the initial database schema for the Treasury module.
+    It includes tables for:
+    - Banks (reference data)
+    - Transaction Types (reference data)
+    
+    Author: RT-ComOps Team
+    Date: 2024-12-10
+-->
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.24.xsd">
+
+    <!-- ====================================================================== -->
+    <!-- CHANGESET 001-1: Create schema for treasury module                     -->
+    <!-- ====================================================================== -->
+    <changeSet id="001-1-create-treasury-schema" author="rtcomops">
+        <comment>Create treasury schema to organize all treasury tables</comment>
+        <sql>CREATE SCHEMA IF NOT EXISTS treasury;</sql>
+    </changeSet>
+
+    <!-- ====================================================================== -->
+    <!-- CHANGESET 001-2: Create banks table                                    -->
+    <!-- ====================================================================== -->
+    <changeSet id="001-2-create-banks-table" author="rtcomops">
+        <comment>Create banks table for storing bank reference data</comment>
+        
+        <createTable tableName="banks" schemaName="treasury">
+            <!-- Primary Key -->
+            <column name="id" type="UUID">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            
+            <!-- Business Fields -->
+            <column name="code" type="VARCHAR(20)">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="name" type="VARCHAR(100)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="swift_code" type="VARCHAR(11)">
+                <constraints nullable="true"/>
+            </column>
+            <column name="country" type="VARCHAR(50)">
+                <constraints nullable="true"/>
+            </column>
+            <column name="is_active" type="BOOLEAN" defaultValueBoolean="true">
+                <constraints nullable="false"/>
+            </column>
+            
+            <!-- Audit Fields -->
+            <column name="created_at" type="TIMESTAMP WITH TIME ZONE" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP WITH TIME ZONE" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        
+        <!-- Index for faster lookups -->
+        <createIndex indexName="idx_banks_code" tableName="banks" schemaName="treasury">
+            <column name="code"/>
+        </createIndex>
+        <createIndex indexName="idx_banks_is_active" tableName="banks" schemaName="treasury">
+            <column name="is_active"/>
+        </createIndex>
+    </changeSet>
+
+    <!-- ====================================================================== -->
+    <!-- CHANGESET 001-3: Create transaction_types table                        -->
+    <!-- ====================================================================== -->
+    <changeSet id="001-3-create-transaction-types-table" author="rtcomops">
+        <comment>Create transaction_types table for categorizing transactions</comment>
+        
+        <createTable tableName="transaction_types" schemaName="treasury">
+            <!-- Primary Key -->
+            <column name="id" type="UUID">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            
+            <!-- Business Fields -->
+            <column name="code" type="VARCHAR(20)">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="label" type="VARCHAR(100)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="direction" type="VARCHAR(10)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="category" type="VARCHAR(20)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="description" type="VARCHAR(255)">
+                <constraints nullable="true"/>
+            </column>
+            <column name="is_active" type="BOOLEAN" defaultValueBoolean="true">
+                <constraints nullable="false"/>
+            </column>
+            
+            <!-- Audit Fields -->
+            <column name="created_at" type="TIMESTAMP WITH TIME ZONE" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP WITH TIME ZONE" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        
+        <!-- Indexes -->
+        <createIndex indexName="idx_transaction_types_code" tableName="transaction_types" schemaName="treasury">
+            <column name="code"/>
+        </createIndex>
+        <createIndex indexName="idx_transaction_types_category" tableName="transaction_types" schemaName="treasury">
+            <column name="category"/>
+        </createIndex>
+        <createIndex indexName="idx_transaction_types_is_active" tableName="transaction_types" schemaName="treasury">
+            <column name="is_active"/>
+        </createIndex>
+        
+        <!-- Check constraints for ENUM-like values -->
+        <sql>
+            ALTER TABLE treasury.transaction_types 
+            ADD CONSTRAINT chk_direction 
+            CHECK (direction IN ('CREDIT', 'DEBIT', 'BOTH'));
+        </sql>
+        <sql>
+            ALTER TABLE treasury.transaction_types 
+            ADD CONSTRAINT chk_category 
+            CHECK (category IN ('BANK', 'CASH', 'CHECK', 'OTHER'));
+        </sql>
+    </changeSet>
+
+    <!-- ====================================================================== -->
+    <!-- CHANGESET 001-4: Add comments to tables                                -->
+    <!-- ====================================================================== -->
+    <changeSet id="001-4-add-table-comments" author="rtcomops">
+        <comment>Add documentation comments to tables and columns</comment>
+        
+        <sql>
+            COMMENT ON TABLE treasury.banks IS 'Reference table for banking institutions';
+            COMMENT ON COLUMN treasury.banks.code IS 'Unique bank identifier code (e.g., BNP, SG)';
+            COMMENT ON COLUMN treasury.banks.swift_code IS 'SWIFT/BIC code for international transfers';
+            
+            COMMENT ON TABLE treasury.transaction_types IS 'Reference table for transaction categories';
+            COMMENT ON COLUMN treasury.transaction_types.direction IS 'Transaction direction: CREDIT, DEBIT, or BOTH';
+            COMMENT ON COLUMN treasury.transaction_types.category IS 'Transaction category: BANK, CASH, CHECK, or OTHER';
+        </sql>
+    </changeSet>
+
+</databaseChangeLog>
