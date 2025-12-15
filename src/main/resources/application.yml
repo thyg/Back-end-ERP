@@ -6,7 +6,7 @@ spring:
     name: treasury-api
 
   r2dbc:
-    url: r2dbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:treasury_db}
+    url: r2dbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:treasury_db}?sslMode=require
     username: ${DB_USER:treasury_user}
     password: ${DB_PASSWORD:treasury_password_2024}
     pool:
