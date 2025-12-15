@@ -9,31 +9,17 @@ import org.springframework.web.cors.reactive.UrlBasedCorsConfigurationSource;
 import java.util.Arrays;
 import java.util.List;
 
-/**
- * CORS Configuration for Treasury API (WebFlux Reactive).
- *
- * <p>This configuration allows the frontend application (Next.js on port 3000)
- * to communicate with the reactive backend API.</p>
- *
- * @author RT-ComOps Team
- * @version 1.0.0
- * @since 2024-12-10
- */
 @Configuration
 public class CorsConfig {
 
-    /**
-     * Creates a reactive CORS filter for WebFlux.
-     *
-     * @return configured CorsWebFilter bean
-     */
     @Bean
     public CorsWebFilter corsWebFilter() {
         CorsConfiguration corsConfig = new CorsConfiguration();
         
         corsConfig.setAllowedOrigins(Arrays.asList(
-            "http://localhost:3000",
-            "http://127.0.0.1:3000"
+            "http://localhost:3000",                // Pour tes tests locaux
+            "http://127.0.0.1:3000",                // Pour tes tests locaux
+            "https://banking-frontend1.vercel.app"  // 👈 AJOUT IMPORTANT : Ton site Vercel
         ));
         
         corsConfig.setAllowedMethods(Arrays.asList(
