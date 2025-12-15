@@ -1,28 +1,25 @@
 server:
-  port: 8080
+  port: ${PORT:8080}  # Utilise $PORT si défini (Render), sinon 8080 en local
 
 spring:
   application:
     name: treasury-api
-  
-  # R2DBC Configuration (Reactive PostgreSQL)
+
   r2dbc:
-    url: r2dbc:postgresql://localhost:5432/treasury_db
-    username: treasury_user
-    password: treasury_password_2024
+    url: r2dbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:treasury_db}
+    username: ${DB_USER:treasury_user}
+    password: ${DB_PASSWORD:treasury_password_2024}
     pool:
       initial-size: 5
       max-size: 20
       max-idle-time: 30m
-  
-  # JDBC Configuration (for Liquibase only)
+
   datasource:
-    url: jdbc:postgresql://localhost:5432/treasury_db
-    username: treasury_user
-    password: treasury_password_2024
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:treasury_db}
+    username: ${DB_USER:treasury_user}
+    password: ${DB_PASSWORD:treasury_password_2024}
     driver-class-name: org.postgresql.Driver
-  
-  # Liquibase Configuration
+
   liquibase:
     enabled: true
     change-log: classpath:db/changelog/db.changelog-master.xml
