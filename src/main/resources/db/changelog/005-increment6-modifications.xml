@@ -1,0 +1,367 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.24.xsd">
+
+    <!-- ====================================================================== -->
+    <!-- INCRÉMENT 6: Modifications TransactionType, Bank, Checkbook           -->
+    <!-- ====================================================================== -->
+    <!-- Version: 1.0.0                                                         -->
+    <!-- Date: 2024-12-24                                                       -->
+    <!-- Description: Modifications pour le module Banking                      -->
+    <!--   - Suppression de direction sur transaction_types                     -->
+    <!--   - Ajout adresse sur banks                                            -->
+    <!--   - Ajout system_date sur bank_transactions                            -->
+    <!--   - Création table checkbooks                                          -->
+    <!--   - Modifications table checks                                         -->
+    <!--   - Contrainte IBAN sur bank_accounts                                  -->
+    <!--   - Table de séquences pour références automatiques                    -->
+    <!-- ====================================================================== -->
+
+    <!-- ====================================================================== -->
+    <!-- CHANGESET 1: Supprimer la colonne direction de transaction_types       -->
+    <!-- ====================================================================== -->
+    <changeSet id="increment6-001-drop-direction-from-transaction-types" author="thedom">
+        <preConditions onFail="MARK_RAN">
+            <columnExists schemaName="treasury" tableName="transaction_types" columnName="direction"/>
+        </preConditions>
+
+        <!-- Supprimer d'abord la contrainte CHECK si elle existe -->
+        <sql>
+            ALTER TABLE treasury.transaction_types
+            DROP CONSTRAINT IF EXISTS chk_direction;
+        </sql>
+
+        <!-- Supprimer la colonne direction -->
+        <dropColumn schemaName="treasury" tableName="transaction_types" columnName="direction"/>
+
+        <rollback>
+            <addColumn schemaName="treasury" tableName="transaction_types">
+                <column name="direction" type="VARCHAR(10)" defaultValue="DEBIT"
+                        remarks="Sens de la transaction (CREDIT ou DEBIT)">
+                    <constraints nullable="false"/>
+                </column>
+            </addColumn>
+            <sql>
+                ALTER TABLE treasury.transaction_types
+                ADD CONSTRAINT chk_direction
+                CHECK (direction IN ('CREDIT', 'DEBIT'));
+            </sql>
+        </rollback>
+    </changeSet>
+
+    <!-- ====================================================================== -->
+    <!-- CHANGESET 2: Ajouter la colonne address à banks                        -->
+    <!-- ====================================================================== -->
+    <changeSet id="increment6-002-add-address-to-banks" author="thedom">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <columnExists schemaName="treasury" tableName="banks" columnName="address"/>
+            </not>
+        </preConditions>
+
+        <addColumn schemaName="treasury" tableName="banks">
+            <column name="address" type="VARCHAR(500)"
+                    remarks="Adresse complète de la banque (siège ou agence)"/>
+        </addColumn>
+
+        <rollback>
+            <dropColumn schemaName="treasury" tableName="banks" columnName="address"/>
+        </rollback>
+    </changeSet>
+
+    <!-- ====================================================================== -->
+    <!-- CHANGESET 3: Ajouter colonne system_date à bank_transactions           -->
+    <!-- ====================================================================== -->
+    <changeSet id="increment6-003-add-system-date-to-bank-transactions" author="thedom">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <columnExists schemaName="treasury" tableName="bank_transactions" columnName="system_date"/>
+            </not>
+        </preConditions>
+
+        <addColumn schemaName="treasury" tableName="bank_transactions">
+            <column name="system_date" type="TIMESTAMP WITH TIME ZONE"
+                    defaultValueComputed="CURRENT_TIMESTAMP"
+                    remarks="Date système de création de la transaction (pour affichage explicite)">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+
+        <rollback>
+            <dropColumn schemaName="treasury" tableName="bank_transactions" columnName="system_date"/>
+        </rollback>
+    </changeSet>
+
+    <!-- ====================================================================== -->
+    <!-- CHANGESET 4: Créer la table checkbooks (chéquiers)                     -->
+    <!-- ====================================================================== -->
+    <changeSet id="increment6-004-create-checkbooks-table" author="thedom">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists schemaName="treasury" tableName="checkbooks"/>
+            </not>
+        </preConditions>
+
+        <createTable schemaName="treasury" tableName="checkbooks"
+                     remarks="Gestion des chéquiers - Plages de numéros de chèques par compte">
+
+            <!-- Identifiant -->
+            <column name="id" type="UUID" defaultValueComputed="gen_random_uuid()"
+                    remarks="Identifiant unique du chéquier">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+
+            <!-- Lien vers le compte bancaire -->
+            <column name="bank_account_id" type="UUID"
+                    remarks="Compte bancaire associé au chéquier">
+                <constraints nullable="false"
+                             foreignKeyName="fk_checkbooks_bank_account"
+                             referencedTableSchemaName="treasury"
+                             referencedTableName="bank_accounts"
+                             referencedColumnNames="id"/>
+            </column>
+
+            <!-- RIB -->
+            <column name="rib" type="VARCHAR(30)"
+                    remarks="RIB du compte bancaire">
+                <constraints nullable="false"/>
+            </column>
+
+            <!-- Préfixe/Racine des numéros -->
+            <column name="prefix" type="VARCHAR(20)"
+                    remarks="Racine commune des numéros de chèques (ex: 4587)">
+                <constraints nullable="false"/>
+            </column>
+
+            <!-- Plage de numéros -->
+            <column name="start_number" type="INTEGER"
+                    remarks="Premier numéro de la plage (ex: 458701)">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="end_number" type="INTEGER"
+                    remarks="Dernier numéro de la plage (ex: 458750)">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="current_number" type="INTEGER"
+                    remarks="Prochain numéro de chèque à utiliser">
+                <constraints nullable="false"/>
+            </column>
+
+            <!-- Statut -->
+            <column name="status" type="VARCHAR(20)" defaultValue="ACTIVE"
+                    remarks="Statut du chéquier: ACTIVE, FINISHED, CANCELLED">
+                <constraints nullable="false"/>
+            </column>
+
+            <!-- Timestamps -->
+            <column name="created_at" type="TIMESTAMP WITH TIME ZONE"
+                    defaultValueComputed="CURRENT_TIMESTAMP"
+                    remarks="Date de création">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="updated_at" type="TIMESTAMP WITH TIME ZONE"
+                    defaultValueComputed="CURRENT_TIMESTAMP"
+                    remarks="Date de dernière modification">
+                <constraints nullable="false"/>
+            </column>
+
+        </createTable>
+
+        <rollback>
+            <dropTable schemaName="treasury" tableName="checkbooks"/>
+        </rollback>
+    </changeSet>
+
+    <!-- ====================================================================== -->
+    <!-- CHANGESET 4b: Index et contraintes sur checkbooks                      -->
+    <!-- ====================================================================== -->
+    <changeSet id="increment6-004b-checkbooks-indexes-constraints" author="thedom">
+        <preConditions onFail="MARK_RAN">
+            <tableExists schemaName="treasury" tableName="checkbooks"/>
+        </preConditions>
+
+        <!-- Index sur bank_account_id -->
+        <createIndex schemaName="treasury" tableName="checkbooks"
+                     indexName="idx_checkbooks_bank_account_id">
+            <column name="bank_account_id"/>
+        </createIndex>
+
+        <!-- Index sur status -->
+        <createIndex schemaName="treasury" tableName="checkbooks"
+                     indexName="idx_checkbooks_status">
+            <column name="status"/>
+        </createIndex>
+
+        <!-- Contrainte: end_number > start_number -->
+        <sql>
+            ALTER TABLE treasury.checkbooks
+            ADD CONSTRAINT chk_checkbooks_number_range
+            CHECK (end_number > start_number);
+        </sql>
+
+        <!-- Contrainte: current_number entre start_number et end_number + 1 -->
+        <sql>
+            ALTER TABLE treasury.checkbooks
+            ADD CONSTRAINT chk_checkbooks_current_in_range
+            CHECK (current_number >= start_number AND current_number &lt;= end_number + 1);
+        </sql>
+
+        <!-- Contrainte sur le statut -->
+        <sql>
+            ALTER TABLE treasury.checkbooks
+            ADD CONSTRAINT chk_checkbooks_status
+            CHECK (status IN ('ACTIVE', 'FINISHED', 'CANCELLED'));
+        </sql>
+
+        <rollback>
+            <sql>
+                ALTER TABLE treasury.checkbooks DROP CONSTRAINT IF EXISTS chk_checkbooks_status;
+                ALTER TABLE treasury.checkbooks DROP CONSTRAINT IF EXISTS chk_checkbooks_current_in_range;
+                ALTER TABLE treasury.checkbooks DROP CONSTRAINT IF EXISTS chk_checkbooks_number_range;
+            </sql>
+            <dropIndex schemaName="treasury" tableName="checkbooks" indexName="idx_checkbooks_status"/>
+            <dropIndex schemaName="treasury" tableName="checkbooks" indexName="idx_checkbooks_bank_account_id"/>
+        </rollback>
+    </changeSet>
+
+    <!-- ====================================================================== -->
+    <!-- CHANGESET 5: Modifier la table checks pour lier aux checkbooks         -->
+    <!-- ====================================================================== -->
+    <changeSet id="increment6-005-add-checkbook-columns-to-checks" author="thedom">
+        <preConditions onFail="MARK_RAN">
+            <tableExists schemaName="treasury" tableName="checks"/>
+            <not>
+                <columnExists schemaName="treasury" tableName="checks" columnName="checkbook_id"/>
+            </not>
+        </preConditions>
+
+        <!-- Ajouter checkbook_id -->
+        <addColumn schemaName="treasury" tableName="checks">
+            <column name="checkbook_id" type="UUID"
+                    remarks="Chéquier d'origine du chèque (optionnel)"/>
+        </addColumn>
+
+        <!-- Ajouter amount_in_words -->
+        <addColumn schemaName="treasury" tableName="checks">
+            <column name="amount_in_words" type="VARCHAR(500)"
+                    remarks="Montant en toutes lettres"/>
+        </addColumn>
+
+        <!-- Ajouter la contrainte de clé étrangère -->
+        <addForeignKeyConstraint constraintName="fk_checks_checkbook"
+                                 baseTableSchemaName="treasury"
+                                 baseTableName="checks"
+                                 baseColumnNames="checkbook_id"
+                                 referencedTableSchemaName="treasury"
+                                 referencedTableName="checkbooks"
+                                 referencedColumnNames="id"/>
+
+        <!-- Index sur checkbook_id -->
+        <createIndex schemaName="treasury" tableName="checks"
+                     indexName="idx_checks_checkbook_id">
+            <column name="checkbook_id"/>
+        </createIndex>
+
+        <rollback>
+            <dropIndex schemaName="treasury" tableName="checks" indexName="idx_checks_checkbook_id"/>
+            <dropForeignKeyConstraint baseTableSchemaName="treasury"
+                                      baseTableName="checks"
+                                      constraintName="fk_checks_checkbook"/>
+            <dropColumn schemaName="treasury" tableName="checks" columnName="amount_in_words"/>
+            <dropColumn schemaName="treasury" tableName="checks" columnName="checkbook_id"/>
+        </rollback>
+    </changeSet>
+
+    <!-- ====================================================================== -->
+    <!-- CHANGESET 6: Ajouter contrainte IBAN sur bank_accounts                 -->
+    <!-- ====================================================================== -->
+    <changeSet id="increment6-006-add-iban-constraint-to-bank-accounts" author="thedom">
+        <preConditions onFail="MARK_RAN">
+            <tableExists schemaName="treasury" tableName="bank_accounts"/>
+            <columnExists schemaName="treasury" tableName="bank_accounts" columnName="iban"/>
+        </preConditions>
+
+        <!-- Contrainte CHECK sur le format IBAN international -->
+        <!-- Pattern: 2 lettres pays + 2 chiffres + 4 à 30 caractères alphanumériques -->
+        <!-- Permet aussi une valeur NULL ou vide (IBAN optionnel) -->
+        <sql>
+            ALTER TABLE treasury.bank_accounts
+            ADD CONSTRAINT chk_bank_accounts_iban_format
+            CHECK (iban IS NULL OR iban = '' OR iban ~ '^[A-Z]{2}[0-9]{2}[A-Z0-9]{4,30}$');
+        </sql>
+
+        <rollback>
+            <sql>
+                ALTER TABLE treasury.bank_accounts DROP CONSTRAINT IF EXISTS chk_bank_accounts_iban_format;
+            </sql>
+        </rollback>
+    </changeSet>
+
+    <!-- ====================================================================== -->
+    <!-- CHANGESET 7: Créer table transaction_sequences                         -->
+    <!-- ====================================================================== -->
+    <changeSet id="increment6-007-create-transaction-sequences-table" author="thedom">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists schemaName="treasury" tableName="transaction_sequences"/>
+            </not>
+        </preConditions>
+
+        <createTable schemaName="treasury" tableName="transaction_sequences"
+                     remarks="Gestion des séquences de numérotation des transactions par type et par mois">
+
+            <!-- Identifiant -->
+            <column name="id" type="UUID" defaultValueComputed="gen_random_uuid()"
+                    remarks="Identifiant unique de la séquence">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+
+            <!-- Code du type de transaction -->
+            <column name="type_code" type="VARCHAR(20)"
+                    remarks="Code du type de transaction (ex: VIREMENT, CHEQUE_EMIS)">
+                <constraints nullable="false"/>
+            </column>
+
+            <!-- Année-mois -->
+            <column name="year_month" type="VARCHAR(6)"
+                    remarks="Année et mois au format YYYYMM">
+                <constraints nullable="false"/>
+            </column>
+
+            <!-- Dernière séquence utilisée -->
+            <column name="last_sequence" type="INTEGER" defaultValueNumeric="0"
+                    remarks="Dernier numéro de séquence utilisé pour ce type/mois">
+                <constraints nullable="false"/>
+            </column>
+
+        </createTable>
+
+        <!-- Contrainte d'unicité sur type_code + year_month -->
+        <addUniqueConstraint schemaName="treasury"
+                             tableName="transaction_sequences"
+                             columnNames="type_code, year_month"
+                             constraintName="uq_transaction_sequences_type_month"/>
+
+        <!-- Index sur type_code -->
+        <createIndex schemaName="treasury" tableName="transaction_sequences"
+                     indexName="idx_transaction_sequences_type_code">
+            <column name="type_code"/>
+        </createIndex>
+
+        <rollback>
+            <dropIndex schemaName="treasury" tableName="transaction_sequences"
+                       indexName="idx_transaction_sequences_type_code"/>
+            <dropUniqueConstraint schemaName="treasury"
+                                  tableName="transaction_sequences"
+                                  constraintName="uq_transaction_sequences_type_month"/>
+            <dropTable schemaName="treasury" tableName="transaction_sequences"/>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

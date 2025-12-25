@@ -1,5 +1,6 @@
 package com.rtcomops.treasury.dto.request;
 
+import com.rtcomops.treasury.validation.ValidIban;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
@@ -36,8 +37,8 @@ public class CreateBankAccountRequest {
     @Size(min = 5, max = 50, message = "Account number must be between 5 and 50 characters")
     private String accountNumber;
 
-    @Size(max = 34, message = "IBAN must not exceed 34 characters")
-    @Pattern(regexp = "^$|^[A-Z]{2}[0-9]{2}[A-Z0-9]{4,30}$", message = "Invalid IBAN format")
+    @Size(max = 34, message = "L'IBAN ne doit pas dépasser 34 caractères")
+    @ValidIban
     private String iban;
 
     @Size(max = 11, message = "BIC must not exceed 11 characters")

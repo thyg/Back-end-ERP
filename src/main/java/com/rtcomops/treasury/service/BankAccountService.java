@@ -131,7 +131,8 @@ public class BankAccountService {
                 return validations.then(Mono.defer(() -> {
                     BankAccount updated = bankAccountMapper.updateEntity(existing, request);
                     return bankAccountRepository.save(updated)
-                            .flatMap(saved -> auditLogService.log(
+                            .flatMap(saved ->
+                                auditLogService.log(
                                     AuditModule.BANK_ACCOUNT,
                                     AuditAction.UPDATE,
                                     saved.getId(),
@@ -139,8 +140,10 @@ public class BankAccountService {
                                     existing,
                                     saved,
                                     "Mise à jour du compte bancaire: " + saved.getName()
-                            ).thenReturn(saved))
-                        .flatMap(this::enrichWithBankName);
+                                ).then(Mono.just(saved))
+                            )
+                            .cast(BankAccount.class)
+                            .flatMap(this::enrichWithBankName);
                 }));
             });
     }

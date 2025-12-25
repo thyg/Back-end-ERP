@@ -37,6 +37,7 @@ public class BankTransactionResponse {
     private String description;
     private String partnerName;
     private String status;
+    private LocalDateTime systemDate;
     private Boolean isReconciled;
     private LocalDateTime reconciledAt;
     private LocalDateTime createdAt;

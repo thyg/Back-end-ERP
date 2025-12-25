@@ -24,7 +24,10 @@ public enum AuditModule {
     
     /** Gestion des chèques */
     CHECK("Chèques"),
-    
+
+    /** Gestion des chéquiers */
+    CHECKBOOK("Chéquiers"),
+
     /** Relevés bancaires */
     BANK_STATEMENT("Relevés bancaires"),
     

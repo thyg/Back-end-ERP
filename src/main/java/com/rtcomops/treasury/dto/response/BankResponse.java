@@ -28,6 +28,7 @@ public class BankResponse {
     private String name;
     private String swiftCode;
     private String country;
+    private String address;
     private Boolean isActive;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

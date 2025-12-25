@@ -87,6 +87,32 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * Handles BusinessException (business rule violations).
+     *
+     * @param ex the exception
+     * @param exchange the server web exchange
+     * @return Mono containing the error response with 400 status
+     */
+    @ExceptionHandler(BusinessException.class)
+    public Mono<ResponseEntity<ApiErrorResponse>> handleBusinessException(
+            BusinessException ex,
+            ServerWebExchange exchange) {
+
+        LOG.warn("Business rule violation: {}", ex.getMessage());
+
+        ApiErrorResponse response = ApiErrorResponse.builder()
+            .status(HttpStatus.BAD_REQUEST.value())
+            .error("BUSINESS_ERROR")
+            .message(ex.getMessage())
+            .path(exchange.getRequest().getPath().value())
+            .timestamp(LocalDateTime.now())
+            .traceId(UUID.randomUUID().toString())
+            .build();
+
+        return Mono.just(ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response));
+    }
+
+    /**
      * Handles validation errors from request body.
      *
      * @param ex the validation exception
@@ -99,13 +125,13 @@ public class GlobalExceptionHandler {
             ServerWebExchange exchange) {
         
         LOG.warn("Validation error on request to {}", exchange.getRequest().getPath().value());
-        
+
         Map<String, List<String>> validationErrors = new HashMap<>();
-        
+
         for (FieldError fieldError : ex.getFieldErrors()) {
             String fieldName = fieldError.getField();
             String errorMessage = fieldError.getDefaultMessage();
-            
+            LOG.warn("  - Field '{}': {} (rejected value: {})", fieldName, errorMessage, fieldError.getRejectedValue());
             validationErrors.computeIfAbsent(fieldName, k -> new ArrayList<>()).add(errorMessage);
         }
         

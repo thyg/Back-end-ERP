@@ -76,6 +76,18 @@ public class Check implements Persistable<UUID> {
     @Column("bank_transaction_id")
     private UUID bankTransactionId;
 
+    /**
+     * Reference to the checkbook this check belongs to (optional).
+     */
+    @Column("checkbook_id")
+    private UUID checkbookId;
+
+    /**
+     * Amount written in words (e.g., "Cinq cent mille francs CFA").
+     */
+    @Column("amount_in_words")
+    private String amountInWords;
+
     @CreatedDate
     @Column("created_at")
     private LocalDateTime createdAt;

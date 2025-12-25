@@ -53,12 +53,6 @@ public class TransactionType implements Persistable<UUID> {
     private String label;
 
     /**
-     * Direction of the transaction: CREDIT, DEBIT, or BOTH.
-     */
-    @Column("direction")
-    private String direction;
-
-    /**
      * Category of the transaction: BANK, CASH, CHECK, or OTHER.
      */
     @Column("category")

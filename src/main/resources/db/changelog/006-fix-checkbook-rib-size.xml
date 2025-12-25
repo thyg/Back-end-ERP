@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.24.xsd">
+
+    <!-- ====================================================================== -->
+    <!-- Fix: Corrections pour le module Checkbook                              -->
+    <!-- ====================================================================== -->
+    <!-- Version: 1.0.0                                                         -->
+    <!-- Date: 2024-12-25                                                       -->
+    <!-- Description:                                                           -->
+    <!--   - Augmenter la taille de la colonne rib (30 -> 50)                  -->
+    <!--   - Ajouter CHECKBOOK à la contrainte audit_logs module               -->
+    <!-- ====================================================================== -->
+
+    <changeSet id="006-001-increase-checkbooks-rib-size" author="rtcomops">
+        <comment>Augmenter la taille de la colonne rib de 30 à 50 caractères pour supporter les IBAN</comment>
+
+        <modifyDataType
+            schemaName="treasury"
+            tableName="checkbooks"
+            columnName="rib"
+            newDataType="VARCHAR(50)"/>
+
+        <rollback>
+            <modifyDataType
+                schemaName="treasury"
+                tableName="checkbooks"
+                columnName="rib"
+                newDataType="VARCHAR(30)"/>
+        </rollback>
+    </changeSet>
+
+    <changeSet id="006-002-add-checkbook-to-audit-module-constraint" author="rtcomops">
+        <comment>Ajouter CHECKBOOK à la liste des modules autorisés dans audit_logs</comment>
+
+        <sql>
+            ALTER TABLE treasury.audit_logs DROP CONSTRAINT IF EXISTS chk_audit_logs_module;
+            ALTER TABLE treasury.audit_logs
+            ADD CONSTRAINT chk_audit_logs_module
+            CHECK (module IN (
+                'BANK', 'BANK_ACCOUNT', 'TRANSACTION_TYPE', 'BANK_TRANSACTION',
+                'CHECK', 'CHECKBOOK', 'BANK_STATEMENT', 'STATEMENT_LINE', 'RECONCILIATION'
+            ));
+        </sql>
+
+        <rollback>
+            <sql>
+                ALTER TABLE treasury.audit_logs DROP CONSTRAINT IF EXISTS chk_audit_logs_module;
+                ALTER TABLE treasury.audit_logs
+                ADD CONSTRAINT chk_audit_logs_module
+                CHECK (module IN (
+                    'BANK', 'BANK_ACCOUNT', 'TRANSACTION_TYPE', 'BANK_TRANSACTION',
+                    'CHECK', 'BANK_STATEMENT', 'STATEMENT_LINE', 'RECONCILIATION'
+                ));
+            </sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

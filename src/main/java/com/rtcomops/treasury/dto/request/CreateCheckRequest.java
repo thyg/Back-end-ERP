@@ -30,11 +30,20 @@ public class CreateCheckRequest {
     @NotNull(message = "Bank account ID is required")
     private UUID bankAccountId;
 
+    /**
+     * Optional checkbook ID. If provided, the check number will be auto-generated
+     * from the checkbook's next available number.
+     */
+    private UUID checkbookId;
+
     @NotBlank(message = "Check type is required")
     @Pattern(regexp = "^(ISSUED|RECEIVED)$", message = "Check type must be ISSUED or RECEIVED")
     private String checkType;
 
-    @NotBlank(message = "Check number is required")
+    /**
+     * Check number. Required if checkbookId is not provided.
+     * If checkbookId is provided, this field is ignored and auto-generated.
+     */
     @Size(min = 1, max = 20, message = "Check number must be between 1 and 20 characters")
     private String checkNumber;
 

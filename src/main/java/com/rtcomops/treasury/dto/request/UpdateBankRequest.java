@@ -50,6 +50,12 @@ public class UpdateBankRequest {
     private String country;
 
     /**
+     * Updated address (optional, max 500 characters).
+     */
+    @Size(max = 500, message = "L'adresse ne doit pas dépasser 500 caractères")
+    private String address;
+
+    /**
      * Updated active status (optional).
      */
     private Boolean isActive;

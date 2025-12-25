@@ -32,8 +32,7 @@ public class CreateBankTransactionRequest {
     @NotNull(message = "Transaction type ID is required")
     private UUID transactionTypeId;
 
-    @Size(max = 50, message = "Reference must not exceed 50 characters")
-    private String reference;
+    // reference is generated automatically by the system - not provided in request
 
     @NotNull(message = "Transaction date is required")
     private LocalDate transactionDate;

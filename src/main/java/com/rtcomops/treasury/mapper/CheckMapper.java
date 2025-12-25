@@ -21,12 +21,21 @@ public class CheckMapper {
 
     private static final String DEFAULT_STATUS = "PENDING";
 
+    /**
+     * Converts a CreateCheckRequest to a Check entity.
+     * Note: checkNumber and amountInWords may be set later by the service
+     * if checkbookId is provided.
+     *
+     * @param request the create request DTO
+     * @return a new Check entity
+     */
     public Check toEntity(CreateCheckRequest request) {
         LocalDateTime now = LocalDateTime.now();
-        
+
         return Check.builder()
             .id(UUID.randomUUID())
             .bankAccountId(request.getBankAccountId())
+            .checkbookId(request.getCheckbookId())
             .checkType(request.getCheckType().toUpperCase())
             .checkNumber(request.getCheckNumber())
             .amount(request.getAmount())
@@ -82,9 +91,11 @@ public class CheckMapper {
         return CheckResponse.builder()
             .id(entity.getId())
             .bankAccountId(entity.getBankAccountId())
+            .checkbookId(entity.getCheckbookId())
             .checkType(entity.getCheckType())
             .checkNumber(entity.getCheckNumber())
             .amount(entity.getAmount())
+            .amountInWords(entity.getAmountInWords())
             .partnerName(entity.getPartnerName())
             .issueDate(entity.getIssueDate())
             .dueDate(entity.getDueDate())
@@ -99,9 +110,27 @@ public class CheckMapper {
             .build();
     }
 
-    public CheckResponse toResponseWithAccountName(Check entity, String accountName) {
+    public CheckResponse toResponseWithAccountName(Check entity, String accountName, String currency) {
         CheckResponse response = toResponse(entity);
         response.setBankAccountName(accountName);
+        response.setCurrency(currency);
+        return response;
+    }
+
+    /**
+     * Converts a Check entity to a CheckResponse with account name, currency and checkbook prefix.
+     *
+     * @param entity the check entity
+     * @param accountName the bank account name
+     * @param currency the bank account currency
+     * @param checkbookPrefix the checkbook prefix (if any)
+     * @return the response DTO with details
+     */
+    public CheckResponse toResponseWithDetails(Check entity, String accountName, String currency, String checkbookPrefix) {
+        CheckResponse response = toResponse(entity);
+        response.setBankAccountName(accountName);
+        response.setCurrency(currency);
+        response.setCheckbookPrefix(checkbookPrefix);
         return response;
     }
 }

@@ -36,7 +36,6 @@ public class TransactionTypeMapper {
             .id(UUID.randomUUID())
             .code(request.getCode().toUpperCase())
             .label(request.getLabel())
-            .direction(request.getDirection().toUpperCase())
             .category(request.getCategory().toUpperCase())
             .description(request.getDescription())
             .isActive(request.getIsActive() != null ? request.getIsActive() : true)
@@ -60,9 +59,6 @@ public class TransactionTypeMapper {
         }
         if (request.getLabel() != null) {
             existing.setLabel(request.getLabel());
-        }
-        if (request.getDirection() != null) {
-            existing.setDirection(request.getDirection().toUpperCase());
         }
         if (request.getCategory() != null) {
             existing.setCategory(request.getCategory().toUpperCase());
@@ -90,7 +86,6 @@ public class TransactionTypeMapper {
             .id(entity.getId())
             .code(entity.getCode())
             .label(entity.getLabel())
-            .direction(entity.getDirection())
             .category(entity.getCategory())
             .description(entity.getDescription())
             .isActive(entity.getIsActive())

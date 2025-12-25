@@ -26,7 +26,6 @@ public class TransactionTypeResponse {
     private UUID id;
     private String code;
     private String label;
-    private String direction;
     private String category;
     private String description;
     private Boolean isActive;

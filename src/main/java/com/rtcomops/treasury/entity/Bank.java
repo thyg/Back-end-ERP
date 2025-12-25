@@ -65,6 +65,12 @@ public class Bank implements Persistable<UUID> {
     private String country;
 
     /**
+     * Full address of the bank (headquarters or branch).
+     */
+    @Column("address")
+    private String address;
+
+    /**
      * Indicates if the bank is active and available for selection.
      */
     @Column("is_active")

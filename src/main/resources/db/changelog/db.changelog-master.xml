@@ -17,4 +17,10 @@
     <!-- Increment 5: Audit Logs (Journal des Opérations) -->
     <include file="db/changelog/004-increment5-audit-logs.xml"/>
 
+    <!-- Increment 6: Modifications TransactionType, Bank, Checkbook -->
+    <include file="db/changelog/005-increment6-modifications.xml"/>
+
+    <!-- Fix: Augmenter la taille du RIB dans checkbooks -->
+    <include file="db/changelog/006-fix-checkbook-rib-size.xml"/>
+
 </databaseChangeLog>

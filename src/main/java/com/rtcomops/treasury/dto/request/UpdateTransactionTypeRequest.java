@@ -36,12 +36,6 @@ public class UpdateTransactionTypeRequest {
     private String label;
 
     /**
-     * Updated direction (optional).
-     */
-    @Pattern(regexp = "^(CREDIT|DEBIT|BOTH)$", message = "Direction must be CREDIT, DEBIT, or BOTH")
-    private String direction;
-
-    /**
      * Updated category (optional).
      */
     @Pattern(regexp = "^(BANK|CASH|CHECK|OTHER)$", message = "Category must be BANK, CASH, CHECK, or OTHER")

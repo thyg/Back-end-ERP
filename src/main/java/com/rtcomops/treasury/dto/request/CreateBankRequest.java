@@ -54,6 +54,12 @@ public class CreateBankRequest {
     private String country;
 
     /**
+     * Full address of the bank (optional, max 500 characters).
+     */
+    @Size(max = 500, message = "L'adresse ne doit pas dépasser 500 caractères")
+    private String address;
+
+    /**
      * Whether the bank is active. Defaults to true if not specified.
      */
     private Boolean isActive;

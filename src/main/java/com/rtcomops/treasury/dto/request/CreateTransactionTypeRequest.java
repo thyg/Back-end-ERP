@@ -40,13 +40,6 @@ public class CreateTransactionTypeRequest {
     private String label;
 
     /**
-     * Direction of the transaction: CREDIT, DEBIT, or BOTH.
-     */
-    @NotBlank(message = "Direction is required")
-    @Pattern(regexp = "^(CREDIT|DEBIT|BOTH)$", message = "Direction must be CREDIT, DEBIT, or BOTH")
-    private String direction;
-
-    /**
      * Category of the transaction: BANK, CASH, CHECK, or OTHER.
      */
     @NotBlank(message = "Category is required")

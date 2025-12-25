@@ -26,9 +26,13 @@ public class CheckResponse {
     private UUID id;
     private UUID bankAccountId;
     private String bankAccountName;
+    private String currency;
+    private UUID checkbookId;
+    private String checkbookPrefix;
     private String checkType;
     private String checkNumber;
     private BigDecimal amount;
+    private String amountInWords;
     private String partnerName;
     private LocalDate issueDate;
     private LocalDate dueDate;

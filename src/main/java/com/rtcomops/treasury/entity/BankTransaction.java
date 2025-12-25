@@ -67,6 +67,12 @@ public class BankTransaction implements Persistable<UUID> {
     @Column("status")
     private String status;
 
+    /**
+     * System date when the transaction was created (for display purposes).
+     */
+    @Column("system_date")
+    private LocalDateTime systemDate;
+
     @Column("is_reconciled")
     private Boolean isReconciled;
 

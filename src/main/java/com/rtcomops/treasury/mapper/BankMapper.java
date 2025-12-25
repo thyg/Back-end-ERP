@@ -38,6 +38,7 @@ public class BankMapper {
             .name(request.getName())
             .swiftCode(request.getSwiftCode())
             .country(request.getCountry())
+            .address(request.getAddress())
             .isActive(request.getIsActive() != null ? request.getIsActive() : true)
             .createdAt(now)
             .updatedAt(now)
@@ -66,12 +67,15 @@ public class BankMapper {
         if (request.getCountry() != null) {
             existing.setCountry(request.getCountry());
         }
+        if (request.getAddress() != null) {
+            existing.setAddress(request.getAddress());
+        }
         if (request.getIsActive() != null) {
             existing.setIsActive(request.getIsActive());
         }
         existing.setUpdatedAt(LocalDateTime.now());
         existing.setNew(false);  // Mark as NOT new for UPDATE
-        
+
         return existing;
     }
 
@@ -88,6 +92,7 @@ public class BankMapper {
             .name(entity.getName())
             .swiftCode(entity.getSwiftCode())
             .country(entity.getCountry())
+            .address(entity.getAddress())
             .isActive(entity.getIsActive())
             .createdAt(entity.getCreatedAt())
             .updatedAt(entity.getUpdatedAt())
