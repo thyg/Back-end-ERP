@@ -1,26 +1,26 @@
 server:
-  port: ${PORT:8080}  # Utilise $PORT si défini (Render), sinon 8080 en local
+  port: ${PORT:8080}
 
 spring:
   application:
     name: treasury-api
-
+  
   r2dbc:
-    url: r2dbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:treasury_db}?sslMode=require
-    username: ${DB_USER:treasury_user}
-    password: ${DB_PASSWORD:treasury_password_2024}
+    url: r2dbc:postgresql://ep-shy-wind-agssb5wj-pooler.c-2.eu-central-1.aws.neon.tech:5432/neondb?sslMode=require
+    username: neondb_owner
+    password: npg_QBbt1rDgGaO9
     pool:
       initial-size: 5
       max-size: 20
       max-idle-time: 30m
     properties:
-      ssl: true             #  Force le SSL ici aussi
-      sslMode: require      #  Et ici pour être sûr
+      ssl: true
+      sslMode: require
 
   datasource:
-    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:treasury_db}
-    username: ${DB_USER:treasury_user}
-    password: ${DB_PASSWORD:treasury_password_2024}
+    url: jdbc:postgresql://ep-shy-wind-agssb5wj-pooler.c-2.eu-central-1.aws.neon.tech:5432/neondb?sslmode=require
+    username: neondb_owner
+    password: npg_QBbt1rDgGaO9
     driver-class-name: org.postgresql.Driver
 
   liquibase:
