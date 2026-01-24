@@ -6,19 +6,16 @@ spring:
     name: treasury-api
   
   r2dbc:
-    url: r2dbc:postgresql://ep-shy-wind-agssb5wj-pooler.c-2.eu-central-1.aws.neon.tech:5432/neondb?sslMode=require&project=ep-shy-wind-agssb5wj-pooler
+    url: r2dbc:postgresql://ep-shy-wind-agssb5wj-pooler.c-2.eu-central-1.aws.neon.tech:5432/neondb?sslMode=require
     username: neondb_owner
     password: npg_QBbt1rDgGaO9
     pool:
       initial-size: 5
       max-size: 20
       max-idle-time: 30m
-    properties:
-      ssl: true
-      sslMode: require
 
   datasource:
-    url: jdbc:postgresql://ep-shy-wind-agssb5wj-pooler.c-2.eu-central-1.aws.neon.tech:5432/neondb?sslmode=require&project=ep-shy-wind-agssb5wj-pooler
+    url: jdbc:postgresql://ep-shy-wind-agssb5wj-pooler.c-2.eu-central-1.aws.neon.tech:5432/neondb?sslmode=require
     username: neondb_owner
     password: npg_QBbt1rDgGaO9
     driver-class-name: org.postgresql.Driver
