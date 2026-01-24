@@ -41,8 +41,8 @@ public class UpdateCheckRequest {
 
     private LocalDate cashedDate;
 
-    @Pattern(regexp = "^(PENDING|DEPOSITED|CASHED|REJECTED|CANCELLED)$", 
-             message = "Status must be PENDING, DEPOSITED, CASHED, REJECTED, or CANCELLED")
+    @Pattern(regexp = "^(PENDING|ISSUED|RECEIVED|DEPOSITED|IN_PROGRESS|CASHED|REJECTED|CANCELLED)$",
+             message = "Invalid status value")
     private String status;
 
     @Size(max = 255, message = "Description must not exceed 255 characters")
@@ -50,4 +50,7 @@ public class UpdateCheckRequest {
 
     @Size(max = 255, message = "Rejection reason must not exceed 255 characters")
     private String rejectionReason;
+
+    @Size(max = 100, message = "Issuer bank must not exceed 100 characters")
+    private String issuerBank;
 }

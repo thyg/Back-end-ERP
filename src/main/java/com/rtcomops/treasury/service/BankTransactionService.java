@@ -4,12 +4,15 @@ import com.rtcomops.treasury.dto.request.CreateBankTransactionRequest;
 import com.rtcomops.treasury.dto.request.UpdateBankTransactionRequest;
 import com.rtcomops.treasury.dto.response.BankTransactionResponse;
 import com.rtcomops.treasury.entity.BankTransaction;
+import com.rtcomops.treasury.entity.Check;
 import com.rtcomops.treasury.enums.AuditAction;
 import com.rtcomops.treasury.enums.AuditModule;
+import com.rtcomops.treasury.exception.BusinessException;
 import com.rtcomops.treasury.exception.ResourceNotFoundException;
 import com.rtcomops.treasury.mapper.BankTransactionMapper;
 import com.rtcomops.treasury.repository.BankAccountRepository;
 import com.rtcomops.treasury.repository.BankTransactionRepository;
+import com.rtcomops.treasury.repository.CheckRepository;
 import com.rtcomops.treasury.repository.TransactionSequenceRepository;
 import com.rtcomops.treasury.repository.TransactionTypeRepository;
 import org.slf4j.Logger;
@@ -44,6 +47,7 @@ public class BankTransactionService {
     private final TransactionSequenceRepository sequenceRepository;
     private final BankTransactionMapper transactionMapper;
     private final AuditLogService auditLogService;
+    private final CheckRepository checkRepository;
 
     public BankTransactionService(
             BankTransactionRepository transactionRepository,
@@ -51,13 +55,15 @@ public class BankTransactionService {
             TransactionTypeRepository typeRepository,
             TransactionSequenceRepository sequenceRepository,
             BankTransactionMapper transactionMapper,
-            AuditLogService auditLogService) {
+            AuditLogService auditLogService,
+            CheckRepository checkRepository) {
         this.transactionRepository = transactionRepository;
         this.accountRepository = accountRepository;
         this.typeRepository = typeRepository;
         this.sequenceRepository = sequenceRepository;
         this.transactionMapper = transactionMapper;
         this.auditLogService = auditLogService;
+        this.checkRepository = checkRepository;
     }
 
     @Transactional(readOnly = true)
@@ -98,33 +104,57 @@ public class BankTransactionService {
     }
 
     public Mono<BankTransactionResponse> create(CreateBankTransactionRequest request) {
-        LOG.info("Creating bank transaction for account={}", request.getBankAccountId());
+        LOG.info("Creating bank transaction for account={}, checkId={}", request.getBankAccountId(), request.getCheckId());
 
         return accountRepository.findById(request.getBankAccountId())
             .switchIfEmpty(Mono.error(new ResourceNotFoundException("BankAccount", request.getBankAccountId())))
             .flatMap(account -> typeRepository.findById(request.getTransactionTypeId())
                 .switchIfEmpty(Mono.error(new ResourceNotFoundException("TransactionType", request.getTransactionTypeId())))
-                .flatMap(type -> {
-                    // Generate automatic reference
-                    return generateReference(type.getCode())
-                        .flatMap(reference -> {
-                            BankTransaction entity = transactionMapper.toEntity(request);
-                            entity.setReference(reference);
-                            return transactionRepository.save(entity)
-                                .doOnSuccess(saved -> LOG.info("Bank transaction created: id={}, reference={}",
-                                    saved.getId(), saved.getReference()))
-                                .flatMap(saved -> auditLogService.log(
-                                        AuditModule.BANK_TRANSACTION,
-                                        AuditAction.CREATE,
-                                        saved.getId(),
-                                        "Transaction " + saved.getReference(),
-                                        null,
-                                        saved,
-                                        "Création de la transaction " + saved.getReference()
-                                    ).then(enrichWithDetails(saved))
-                                );
-                        });
-                }));
+                .flatMap(type -> generateReference(type.getCode())
+                    .flatMap(reference -> {
+                        BankTransaction entity = transactionMapper.toEntity(request);
+                        entity.setReference(reference);
+
+                        // Si un checkId est fourni, la transaction est validée d'office
+                        if (request.getCheckId() != null) {
+                            entity.setStatus("VALIDATED");
+                        }
+
+                        return transactionRepository.save(entity)
+                            .doOnSuccess(saved -> LOG.info("Bank transaction created: id={}, reference={}",
+                                saved.getId(), saved.getReference()))
+                            .flatMap(saved -> {
+                                Mono<BankTransaction> pipeline = Mono.just(saved);
+
+                                // Si un checkId est lié, mettre à jour le chèque
+                                if (request.getCheckId() != null) {
+                                    pipeline = pipeline.flatMap(tx ->
+                                        linkAndUpdateCheck(tx, request.getCheckId())
+                                            .thenReturn(tx)
+                                    );
+                                }
+
+                                // Si la transaction est validée, mettre à jour le solde du compte
+                                if ("VALIDATED".equals(saved.getStatus())) {
+                                    pipeline = pipeline.flatMap(tx ->
+                                        updateAccountBalance(tx.getBankAccountId(), tx.getAmount(), tx.getDirection(), true)
+                                            .thenReturn(tx)
+                                    );
+                                }
+
+                                return pipeline;
+                            })
+                            .flatMap(finalTx -> auditLogService.log(
+                                AuditModule.BANK_TRANSACTION,
+                                AuditAction.CREATE,
+                                finalTx.getId(),
+                                "Transaction " + finalTx.getReference(),
+                                null,
+                                finalTx,
+                                "Création de la transaction " + finalTx.getReference()
+                            ).then(enrichWithDetails(finalTx)));
+                    })
+                ));
     }
 
     /**
@@ -142,6 +172,47 @@ public class BankTransactionService {
             .map(sequence -> {
                 String formattedSequence = String.format("%04d", sequence);
                 return normalizedCode + "-" + yearMonth + "-" + formattedSequence;
+            });
+    }
+
+    /**
+     * Lie un chèque à une transaction et met à jour son statut à CASHED.
+     *
+     * @param transaction la transaction à laquelle lier le chèque
+     * @param checkId l'ID du chèque à lier
+     * @return Mono<Check> le chèque mis à jour
+     */
+    private Mono<Check> linkAndUpdateCheck(BankTransaction transaction, UUID checkId) {
+        return checkRepository.findById(checkId)
+            .switchIfEmpty(Mono.error(new ResourceNotFoundException("Check", checkId)))
+            .flatMap(check -> {
+                // Vérifier que le chèque n'est pas déjà traité
+                if ("CASHED".equals(check.getStatus()) || "CANCELLED".equals(check.getStatus())) {
+                    return Mono.error(new BusinessException(
+                        "Ce chèque a déjà été traité et ne peut être lié à une transaction."));
+                }
+
+                // Copier l'état précédent pour l'audit
+                Check oldCheckState = check.toBuilder().build();
+
+                // Mettre à jour le chèque
+                check.setBankTransactionId(transaction.getId());
+                check.setStatus("CASHED");
+                check.setCashedDate(transaction.getTransactionDate());
+                check.setNew(false);
+
+                return checkRepository.save(check)
+                    .doOnSuccess(saved -> LOG.info("Linked check {} to transaction {}, status -> CASHED",
+                        saved.getId(), transaction.getReference()))
+                    .flatMap(savedCheck -> auditLogService.log(
+                        AuditModule.CHECK,
+                        AuditAction.UPDATE,
+                        savedCheck.getId(),
+                        savedCheck.getCheckNumber(),
+                        oldCheckState,
+                        savedCheck,
+                        "Chèque lié à la transaction " + transaction.getReference()
+                    ).thenReturn(savedCheck));
             });
     }
 

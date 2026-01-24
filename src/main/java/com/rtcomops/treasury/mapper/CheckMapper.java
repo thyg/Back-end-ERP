@@ -44,6 +44,8 @@ public class CheckMapper {
             .dueDate(request.getDueDate())
             .status(DEFAULT_STATUS)
             .description(request.getDescription())
+            .issuerBank(request.getIssuerBank())
+            .receiptDate(request.getReceiptDate())
             .createdAt(now)
             .updatedAt(now)
             .isNew(true)
@@ -81,6 +83,9 @@ public class CheckMapper {
         if (request.getRejectionReason() != null) {
             existing.setRejectionReason(request.getRejectionReason());
         }
+        if (request.getIssuerBank() != null) {
+            existing.setIssuerBank(request.getIssuerBank());
+        }
         existing.setUpdatedAt(LocalDateTime.now());
         existing.setNew(false);
         
@@ -101,9 +106,14 @@ public class CheckMapper {
             .dueDate(entity.getDueDate())
             .depositDate(entity.getDepositDate())
             .cashedDate(entity.getCashedDate())
+            .receiptDate(entity.getReceiptDate())
+            .emitDate(entity.getEmitDate())
             .status(entity.getStatus())
             .description(entity.getDescription())
             .rejectionReason(entity.getRejectionReason())
+            .referenceCode(entity.getReferenceCode())
+            .imageUrl(entity.getImageUrl())
+            .issuerBank(entity.getIssuerBank())
             .bankTransactionId(entity.getBankTransactionId())
             .createdAt(entity.getCreatedAt())
             .updatedAt(entity.getUpdatedAt())

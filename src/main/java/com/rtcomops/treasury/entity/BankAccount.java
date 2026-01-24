@@ -39,6 +39,18 @@ public class BankAccount implements Persistable<UUID> {
     @Column("bank_id")
     private UUID bankId;
 
+    /**
+     * Reference to the account type configuration.
+     */
+    @Column("account_type_id")
+    private UUID accountTypeId;
+
+    /**
+     * Reference to the account sub-type configuration (optional).
+     */
+    @Column("account_sub_type_id")
+    private UUID accountSubTypeId;
+
     @Column("name")
     private String name;
 
@@ -62,6 +74,18 @@ public class BankAccount implements Persistable<UUID> {
 
     @Column("is_active")
     private Boolean isActive;
+
+    /**
+     * Indicates if overdraft is authorized for this account.
+     */
+    @Column("overdraft_authorized")
+    private Boolean overdraftAuthorized;
+
+    /**
+     * Maximum overdraft limit in account currency.
+     */
+    @Column("overdraft_limit")
+    private BigDecimal overdraftLimit;
 
     @CreatedDate
     @Column("created_at")
@@ -88,5 +112,59 @@ public class BankAccount implements Persistable<UUID> {
     public BankAccount markNotNew() {
         this.isNew = false;
         return this;
+    }
+
+    // =========================================================================
+    // OVERDRAFT UTILITY METHODS
+    // =========================================================================
+
+    /**
+     * Calculates the available balance including overdraft.
+     *
+     * @return available balance (current + overdraft limit)
+     */
+    public BigDecimal getAvailableBalance() {
+        BigDecimal balance = currentBalance != null ? currentBalance : BigDecimal.ZERO;
+        BigDecimal limit = (Boolean.TRUE.equals(overdraftAuthorized) && overdraftLimit != null)
+            ? overdraftLimit
+            : BigDecimal.ZERO;
+        return balance.add(limit);
+    }
+
+    /**
+     * Calculates the currently used overdraft amount.
+     *
+     * @return overdraft used (0 if balance is positive)
+     */
+    public BigDecimal getOverdraftUsed() {
+        if (currentBalance == null || currentBalance.compareTo(BigDecimal.ZERO) >= 0) {
+            return BigDecimal.ZERO;
+        }
+        return currentBalance.negate();
+    }
+
+    /**
+     * Checks if an operation of the given amount is authorized.
+     *
+     * @param amount the amount to debit
+     * @return true if the operation is authorized
+     */
+    public boolean isOperationAuthorized(BigDecimal amount) {
+        if (amount == null) {
+            return true;
+        }
+        return amount.compareTo(getAvailableBalance()) <= 0;
+    }
+
+    /**
+     * Calculates the remaining overdraft capacity.
+     *
+     * @return remaining overdraft (overdraft limit - overdraft used)
+     */
+    public BigDecimal getRemainingOverdraft() {
+        if (!Boolean.TRUE.equals(overdraftAuthorized) || overdraftLimit == null) {
+            return BigDecimal.ZERO;
+        }
+        return overdraftLimit.subtract(getOverdraftUsed()).max(BigDecimal.ZERO);
     }
 }

@@ -1,0 +1,159 @@
+package com.rtcomops.treasury.mapper;
+
+import com.rtcomops.treasury.dto.request.CreateAccountTypeRequest;
+import com.rtcomops.treasury.dto.request.UpdateAccountTypeRequest;
+import com.rtcomops.treasury.dto.response.AccountSubTypeResponse;
+import com.rtcomops.treasury.dto.response.AccountTypeResponse;
+import com.rtcomops.treasury.entity.AccountSubType;
+import com.rtcomops.treasury.entity.AccountType;
+import org.springframework.stereotype.Component;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.UUID;
+
+/**
+ * Mapper for converting between AccountType/AccountSubType entities and DTOs.
+ *
+ * <p>Provides methods for transforming request DTOs to entities
+ * and entities to response DTOs.</p>
+ *
+ * @author RT-ComOps Team
+ * @version 1.0.0
+ * @since 2024-12-30
+ */
+@Component
+public class AccountTypeMapper {
+
+    /**
+     * Converts a CreateAccountTypeRequest to an AccountType entity.
+     * The entity is marked as new for proper INSERT behavior.
+     *
+     * @param request the create request DTO
+     * @return a new AccountType entity ready for persistence
+     */
+    public AccountType toEntity(CreateAccountTypeRequest request) {
+        LocalDateTime now = LocalDateTime.now();
+
+        return AccountType.builder()
+            .id(UUID.randomUUID())
+            .code(request.getCode().toUpperCase())
+            .libelle(request.getLibelle())
+            .description(request.getDescription())
+            .peutEmettreChecques(request.getPeutEmettreChecques() != null ? request.getPeutEmettreChecques() : false)
+            .peutRecevoirChecques(request.getPeutRecevoirChecques() != null ? request.getPeutRecevoirChecques() : false)
+            .peutTransactionsEspeces(request.getPeutTransactionsEspeces() != null ? request.getPeutTransactionsEspeces() : false)
+            .decouvertAutorise(request.getDecouvertAutorise() != null ? request.getDecouvertAutorise() : false)
+            .decouvertParDefaut(request.getDecouvertParDefaut() != null ? request.getDecouvertParDefaut() : BigDecimal.ZERO)
+            .isActive(request.getIsActive() != null ? request.getIsActive() : true)
+            .ordreAffichage(request.getOrdreAffichage() != null ? request.getOrdreAffichage() : 0)
+            .createdAt(now)
+            .updatedAt(now)
+            .isNew(true)
+            .build();
+    }
+
+    /**
+     * Updates an existing AccountType entity with values from UpdateAccountTypeRequest.
+     * The entity is marked as NOT new for proper UPDATE behavior.
+     *
+     * @param existing the existing entity
+     * @param request the update request DTO
+     * @return the updated AccountType entity
+     */
+    public AccountType updateEntity(AccountType existing, UpdateAccountTypeRequest request) {
+        if (request.getCode() != null) {
+            existing.setCode(request.getCode().toUpperCase());
+        }
+        if (request.getLibelle() != null) {
+            existing.setLibelle(request.getLibelle());
+        }
+        if (request.getDescription() != null) {
+            existing.setDescription(request.getDescription());
+        }
+        if (request.getPeutEmettreChecques() != null) {
+            existing.setPeutEmettreChecques(request.getPeutEmettreChecques());
+        }
+        if (request.getPeutRecevoirChecques() != null) {
+            existing.setPeutRecevoirChecques(request.getPeutRecevoirChecques());
+        }
+        if (request.getPeutTransactionsEspeces() != null) {
+            existing.setPeutTransactionsEspeces(request.getPeutTransactionsEspeces());
+        }
+        if (request.getDecouvertAutorise() != null) {
+            existing.setDecouvertAutorise(request.getDecouvertAutorise());
+        }
+        if (request.getDecouvertParDefaut() != null) {
+            existing.setDecouvertParDefaut(request.getDecouvertParDefaut());
+        }
+        if (request.getIsActive() != null) {
+            existing.setIsActive(request.getIsActive());
+        }
+        if (request.getOrdreAffichage() != null) {
+            existing.setOrdreAffichage(request.getOrdreAffichage());
+        }
+        existing.setUpdatedAt(LocalDateTime.now());
+        existing.setNew(false);
+
+        return existing;
+    }
+
+    /**
+     * Converts an AccountType entity to an AccountTypeResponse DTO.
+     *
+     * @param entity the account type entity
+     * @return the response DTO
+     */
+    public AccountTypeResponse toResponse(AccountType entity) {
+        return AccountTypeResponse.builder()
+            .id(entity.getId())
+            .code(entity.getCode())
+            .libelle(entity.getLibelle())
+            .description(entity.getDescription())
+            .peutEmettreChecques(entity.getPeutEmettreChecques())
+            .peutRecevoirChecques(entity.getPeutRecevoirChecques())
+            .peutTransactionsEspeces(entity.getPeutTransactionsEspeces())
+            .decouvertAutorise(entity.getDecouvertAutorise())
+            .decouvertParDefaut(entity.getDecouvertParDefaut())
+            .isActive(entity.getIsActive())
+            .ordreAffichage(entity.getOrdreAffichage())
+            .createdAt(entity.getCreatedAt())
+            .updatedAt(entity.getUpdatedAt())
+            .build();
+    }
+
+    /**
+     * Converts an AccountSubType entity to an AccountSubTypeResponse DTO.
+     * Computes effective values from parent AccountType.
+     *
+     * @param entity the account sub-type entity
+     * @param parent the parent account type entity
+     * @return the response DTO with effective values
+     */
+    public AccountSubTypeResponse toSubTypeResponse(AccountSubType entity, AccountType parent) {
+        return AccountSubTypeResponse.builder()
+            .id(entity.getId())
+            .accountTypeId(entity.getAccountTypeId())
+            .code(entity.getCode())
+            .libelle(entity.getLibelle())
+            .description(entity.getDescription())
+            // Override values
+            .peutEmettreChequesOverride(entity.getPeutEmettreChequesOverride())
+            .peutRecevoirChequesOverride(entity.getPeutRecevoirChequesOverride())
+            .peutTransactionsEspecesOverride(entity.getPeutTransactionsEspecesOverride())
+            .decouvertAutoriseOverride(entity.getDecouvertAutoriseOverride())
+            .decouvertParDefautOverride(entity.getDecouvertParDefautOverride())
+            // Effective values (computed)
+            .peutEmettreChecques(entity.getEffectivePeutEmettreChecques(parent.getPeutEmettreChecques()))
+            .peutRecevoirChecques(entity.getEffectivePeutRecevoirChecques(parent.getPeutRecevoirChecques()))
+            .peutTransactionsEspeces(entity.getEffectivePeutTransactionsEspeces(parent.getPeutTransactionsEspeces()))
+            .decouvertAutorise(entity.getEffectiveDecouvertAutorise(parent.getDecouvertAutorise()))
+            .decouvertParDefaut(entity.getEffectiveDecouvertParDefaut(parent.getDecouvertParDefaut()))
+            // Other fields
+            .isActive(entity.getIsActive())
+            .ordreAffichage(entity.getOrdreAffichage())
+            .createdAt(entity.getCreatedAt())
+            .updatedAt(entity.getUpdatedAt())
+            .build();
+    }
+}

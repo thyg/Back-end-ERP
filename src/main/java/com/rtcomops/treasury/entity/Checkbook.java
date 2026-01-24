@@ -45,10 +45,10 @@ public class Checkbook implements Persistable<UUID> {
     private UUID bankAccountId;
 
     /**
-     * RIB (Relevé d'Identité Bancaire) associated with this checkbook.
+     * IBAN associated with this checkbook.
      */
-    @Column("rib")
-    private String rib;
+    @Column("iban")
+    private String iban;
 
     /**
      * Common prefix/root for check numbers (e.g., "4587").
@@ -69,6 +69,12 @@ public class Checkbook implements Persistable<UUID> {
     private Integer endNumber;
 
     /**
+     * Number of pages (checks) in the checkbook.
+     */
+    @Column("number_of_pages")
+    private Integer numberOfPages;
+
+    /**
      * Next available check number to use.
      */
     @Column("current_number")
@@ -79,6 +85,26 @@ public class Checkbook implements Persistable<UUID> {
      */
     @Column("status")
     private String status;
+
+    /**
+     * Type of checkbook: REEL (physical) or FICTIF (system/virtual).
+     */
+    @Column("type")
+    @Builder.Default
+    private String type = "REEL";
+
+    /**
+     * Indicates if this is a system checkbook (cannot be modified/deleted).
+     */
+    @Column("is_system")
+    @Builder.Default
+    private Boolean isSystem = false;
+
+    /**
+     * Next sequence number for fictif checkbook.
+     */
+    @Column("next_sequence")
+    private Long nextSequence;
 
     /**
      * Timestamp when the record was created.
@@ -115,10 +141,14 @@ public class Checkbook implements Persistable<UUID> {
 
     /**
      * Checks if the checkbook has available checks.
+     * Fictif checkbooks always have unlimited checks.
      *
      * @return true if checks are available and status is ACTIVE
      */
     public boolean hasAvailableChecks() {
+        if (isFictif()) {
+            return "ACTIVE".equals(status);
+        }
         return currentNumber != null
             && endNumber != null
             && currentNumber <= endNumber
@@ -127,10 +157,14 @@ public class Checkbook implements Persistable<UUID> {
 
     /**
      * Calculates the number of remaining checks.
+     * Returns -1 for fictif checkbooks (unlimited).
      *
-     * @return the number of available checks, or 0 if none
+     * @return the number of available checks, -1 for unlimited (fictif), or 0 if none
      */
     public int getAvailableChecksCount() {
+        if (isFictif()) {
+            return -1; // Unlimited
+        }
         if (currentNumber == null || endNumber == null || currentNumber > endNumber) {
             return 0;
         }
@@ -155,5 +189,36 @@ public class Checkbook implements Persistable<UUID> {
     public Checkbook markNotNew() {
         this.isNew = false;
         return this;
+    }
+
+    /**
+     * Checks if this is the fictif system checkbook.
+     *
+     * @return true if this is a fictif checkbook
+     */
+    public boolean isFictif() {
+        return "FICTIF".equals(type);
+    }
+
+    /**
+     * Checks if this is a real (physical) checkbook.
+     *
+     * @return true if this is a real checkbook
+     */
+    public boolean isReel() {
+        return "REEL".equals(type);
+    }
+
+    /**
+     * Generates the next check number for received checks (fictif checkbook).
+     * Format: CHQ-REC-000001, CHQ-REC-000002, etc.
+     *
+     * @return formatted check number for received checks
+     */
+    public String getNextReceivedCheckNumber() {
+        if (!isFictif() || nextSequence == null) {
+            return null;
+        }
+        return "CHQ-REC-" + String.format("%06d", nextSequence);
     }
 }

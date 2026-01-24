@@ -2,6 +2,7 @@ package com.rtcomops.treasury.service;
 
 import com.rtcomops.treasury.dto.request.CreateCheckbookRequest;
 import com.rtcomops.treasury.dto.response.CheckbookResponse;
+import com.rtcomops.treasury.dto.response.CheckbookStatsResponse;
 import com.rtcomops.treasury.entity.Checkbook;
 import com.rtcomops.treasury.enums.AuditAction;
 import com.rtcomops.treasury.enums.AuditModule;
@@ -9,6 +10,7 @@ import com.rtcomops.treasury.exception.BusinessException;
 import com.rtcomops.treasury.exception.ResourceNotFoundException;
 import com.rtcomops.treasury.mapper.CheckbookMapper;
 import com.rtcomops.treasury.repository.BankAccountRepository;
+import com.rtcomops.treasury.repository.CheckRepository;
 import com.rtcomops.treasury.repository.CheckbookRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,16 +43,19 @@ public class CheckbookService {
     private final BankAccountRepository accountRepository;
     private final CheckbookMapper checkbookMapper;
     private final AuditLogService auditLogService;
+    private final CheckRepository checkRepository;
 
     public CheckbookService(
             CheckbookRepository checkbookRepository,
             BankAccountRepository accountRepository,
             CheckbookMapper checkbookMapper,
-            AuditLogService auditLogService) {
+            AuditLogService auditLogService,
+            CheckRepository checkRepository) {
         this.checkbookRepository = checkbookRepository;
         this.accountRepository = accountRepository;
         this.checkbookMapper = checkbookMapper;
         this.auditLogService = auditLogService;
+        this.checkRepository = checkRepository;
     }
 
     /**
@@ -117,10 +122,10 @@ public class CheckbookService {
     public Mono<CheckbookResponse> create(CreateCheckbookRequest request) {
         LOG.info("Creating checkbook for account={}", request.getBankAccountId());
 
-        // Validate that endNumber > startNumber
-        if (request.getEndNumber() <= request.getStartNumber()) {
+        // Validate numberOfPages
+        if (request.getNumberOfPages() == null || request.getNumberOfPages() < 1) {
             return Mono.error(new BusinessException(
-                "Le numéro de fin doit être supérieur au numéro de début"));
+                "Le nombre de feuilles doit être au minimum 1"));
         }
 
         return accountRepository.findById(request.getBankAccountId())
@@ -130,11 +135,17 @@ public class CheckbookService {
                 checkbookRepository.existsOverlappingRange(
                     request.getBankAccountId(),
                     request.getStartNumber(),
-                    request.getEndNumber()
+                    request.calculateEndNumber()
                 ).flatMap(exists -> {
                     if (exists) {
                         return Mono.error(new BusinessException(
                             "Une plage de numéros chevauchante existe déjà pour ce compte"));
+                    }
+
+                    // Use IBAN from account if not provided
+                    if (request.getIban() == null || request.getIban().isBlank()) {
+                        String iban = account.getIban() != null ? account.getIban() : account.getAccountNumber();
+                        request.setIban(iban);
                     }
 
                     Checkbook entity = checkbookMapper.toEntity(request);
@@ -197,35 +208,27 @@ public class CheckbookService {
             });
     }
 
-    /**
-     * Gets the next check number from a checkbook and increments the counter.
-     *
-     * @param id the checkbook ID
-     * @return Mono of the next check number string
-     * @throws ResourceNotFoundException if checkbook not found
-     * @throws BusinessException if no checks available
-     */
-    public Mono<String> getNextCheckNumber(UUID id) {
-        LOG.info("Getting next check number from checkbook id={}", id);
+   // AJOUTEZ cette nouvelle méthode :
+/**
+ * Gets the next available check number without incrementing the counter.
+ * This is for display purposes only.
+ *
+ * @param id the checkbook ID
+ * @return Mono of the next check number string
+ */
+@Transactional(readOnly = true) // C'est une opération de lecture seule
+public Mono<String> peekNextCheckNumber(UUID id) {
+    LOG.debug("Peeking next check number for checkbook id={}", id);
 
-        return checkbookRepository.findById(id)
-            .switchIfEmpty(Mono.error(new ResourceNotFoundException(RESOURCE_NAME, id)))
-            .flatMap(checkbook -> {
-                if (!checkbook.hasAvailableChecks()) {
-                    return Mono.error(new BusinessException(
-                        "Aucun chèque disponible dans ce chéquier"));
-                }
-
-                // Get the current check number before incrementing
-                String checkNumber = checkbook.getNextCheckNumber();
-
-                // Increment the counter
-                return checkbookRepository.incrementCurrentNumber(id)
-                    .switchIfEmpty(Mono.error(new BusinessException(
-                        "Erreur lors de l'allocation du numéro de chèque")))
-                    .thenReturn(checkNumber);
-            });
-    }
+    return checkbookRepository.findById(id)
+        .switchIfEmpty(Mono.error(new ResourceNotFoundException(RESOURCE_NAME, id)))
+        .flatMap(checkbook -> {
+            if (!checkbook.hasAvailableChecks()) {
+                return Mono.error(new BusinessException("Aucun chèque disponible dans ce chéquier"));
+            }
+            return Mono.just(checkbook.getNextCheckNumber());
+        });
+}
 
     /**
      * Gets the active checkbook for a bank account.
@@ -241,12 +244,36 @@ public class CheckbookService {
     }
 
     /**
+     * Gets statistics for a specific checkbook.
+     *
+     * @param checkbookId the checkbook ID
+     * @return Mono of CheckbookStatsResponse
+     * @throws ResourceNotFoundException if checkbook not found
+     */
+    @Transactional(readOnly = true)
+    public Mono<CheckbookStatsResponse> getStats(UUID checkbookId) {
+        LOG.debug("Getting stats for checkbook id={}", checkbookId);
+        return checkbookRepository.findById(checkbookId)
+            .switchIfEmpty(Mono.error(new ResourceNotFoundException(RESOURCE_NAME, checkbookId)))
+            .flatMap(checkbook -> checkRepository.getStatsByCheckbookId(checkbookId)
+                .map(stats -> {
+                    stats.setRemainingChecks(checkbook.getAvailableChecksCount());
+                    return stats;
+                }));
+    }
+
+    /**
      * Enriches a checkbook with the bank account name.
      *
      * @param checkbook the checkbook entity
      * @return Mono of CheckbookResponse with account name
      */
     private Mono<CheckbookResponse> enrichWithAccountName(Checkbook checkbook) {
+        // Si le bankAccountId est null (chequier fictif/systeme), retourner directement sans enrichissement
+        if (checkbook.getBankAccountId() == null) {
+            return Mono.just(checkbookMapper.toResponseWithDetails(checkbook, null));
+        }
+
         return accountRepository.findById(checkbook.getBankAccountId())
             .map(account -> checkbookMapper.toResponseWithDetails(checkbook, account.getName()))
             .defaultIfEmpty(checkbookMapper.toResponseWithDetails(checkbook, "Compte inconnu"));

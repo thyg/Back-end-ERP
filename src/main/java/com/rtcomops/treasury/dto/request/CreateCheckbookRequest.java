@@ -1,5 +1,6 @@
 package com.rtcomops.treasury.dto.request;
 
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -31,11 +32,10 @@ public class CreateCheckbookRequest {
     private UUID bankAccountId;
 
     /**
-     * RIB associated with the checkbook.
+     * IBAN associated with the checkbook (optional - will be fetched from bank account if not provided).
      */
-    @NotBlank(message = "Le RIB est obligatoire")
-    @Size(max = 50, message = "Le RIB ne doit pas dépasser 50 caractères")
-    private String rib;
+    @Size(max = 50, message = "L'IBAN ne doit pas dépasser 50 caractères")
+    private String iban;
 
     /**
      * Common prefix/root for check numbers.
@@ -52,9 +52,22 @@ public class CreateCheckbookRequest {
     private Integer startNumber;
 
     /**
-     * Last check number in the range.
+     * Number of pages (checks) in the checkbook.
      */
-    @NotNull(message = "Le numéro de fin est obligatoire")
-    @Min(value = 1, message = "Le numéro de fin doit être positif")
-    private Integer endNumber;
+    @NotNull(message = "Le nombre de feuilles est obligatoire")
+    @Min(value = 1, message = "Minimum 1 feuille")
+    @Max(value = 500, message = "Maximum 500 feuilles")
+    private Integer numberOfPages;
+
+    /**
+     * Calculates endNumber from startNumber and numberOfPages.
+     *
+     * @return the calculated end number
+     */
+    public Integer calculateEndNumber() {
+        if (startNumber != null && numberOfPages != null) {
+            return startNumber + numberOfPages - 1;
+        }
+        return null;
+    }
 }

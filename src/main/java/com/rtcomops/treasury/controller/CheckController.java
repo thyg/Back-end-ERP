@@ -5,6 +5,7 @@ import com.rtcomops.treasury.dto.request.UpdateCheckRequest;
 import com.rtcomops.treasury.dto.response.CheckResponse;
 import com.rtcomops.treasury.service.CheckService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -42,10 +43,12 @@ public class CheckController {
     }
 
     @GetMapping
-    @Operation(summary = "Get all checks")
-    public Flux<CheckResponse> getAllChecks() {
-        LOG.debug("REST request to get all checks");
-        return checkService.findAll();
+    @Operation(summary = "Get all checks with optional filters")
+    public Flux<CheckResponse> getAllChecks(
+            @Parameter(description = "Filter checks by a specific checkbook ID")
+            @RequestParam(required = false) UUID checkbookId) {
+        LOG.debug("REST request to get all checks with checkbookId={}", checkbookId);
+        return checkService.findAll(checkbookId);
     }
 
     @GetMapping("/{id}")
@@ -186,5 +189,35 @@ public class CheckController {
     public Mono<ResponseEntity<CheckResponse>> cancelCheck(@PathVariable UUID id) {
         LOG.debug("REST request to cancel check id={}", id);
         return checkService.cancel(id).map(ResponseEntity::ok);
+    }
+
+    @PostMapping("/{id}/emit")
+    @Operation(summary = "Mark check as emitted (handed to beneficiary)")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Check emitted"),
+        @ApiResponse(responseCode = "400", description = "Invalid state transition"),
+        @ApiResponse(responseCode = "404", description = "Check not found")
+    })
+    public Mono<ResponseEntity<CheckResponse>> emitCheck(
+            @PathVariable UUID id,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate emitDate) {
+        LOG.debug("REST request to emit check id={}", id);
+        LocalDate effectiveDate = emitDate != null ? emitDate : LocalDate.now();
+        return checkService.emit(id, effectiveDate).map(ResponseEntity::ok);
+    }
+
+    @PostMapping("/{id}/receive")
+    @Operation(summary = "Mark check as received (in our possession)")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Check marked as received"),
+        @ApiResponse(responseCode = "400", description = "Invalid state transition"),
+        @ApiResponse(responseCode = "404", description = "Check not found")
+    })
+    public Mono<ResponseEntity<CheckResponse>> receiveCheck(
+            @PathVariable UUID id,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate receiveDate) {
+        LOG.debug("REST request to receive check id={}", id);
+        LocalDate effectiveDate = receiveDate != null ? receiveDate : LocalDate.now();
+        return checkService.receive(id, effectiveDate).map(ResponseEntity::ok);
     }
 }

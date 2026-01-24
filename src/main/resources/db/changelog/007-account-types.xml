@@ -1,0 +1,270 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    007 - Account Types Configuration
+    Treasury Module - RT-ComOps ERP
+
+    This changelog creates tables for:
+    - Account Types (types de comptes)
+    - Account Sub-Types (sous-types de comptes)
+
+    Author: RT-ComOps Team
+    Date: 2024-12-30
+-->
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.24.xsd">
+
+    <!-- ====================================================================== -->
+    <!-- CHANGESET 007-1: Create account_types table                            -->
+    <!-- ====================================================================== -->
+    <changeSet id="007-1-create-account-types-table" author="rtcomops">
+        <comment>Create account_types table for configuring bank account categories</comment>
+
+        <createTable tableName="account_types" schemaName="treasury"
+                     remarks="Types de comptes bancaires configurables">
+
+            <column name="id" type="UUID" defaultValueComputed="gen_random_uuid()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+
+            <column name="code" type="VARCHAR(20)"
+                    remarks="Code unique du type (ex: CHEQUE, ESPECES)">
+                <constraints nullable="false" unique="true"/>
+            </column>
+
+            <column name="libelle" type="VARCHAR(100)"
+                    remarks="Libelle affiche">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="description" type="VARCHAR(500)"
+                    remarks="Description detaillee"/>
+
+            <column name="peut_emettre_cheques" type="BOOLEAN" defaultValueBoolean="false"
+                    remarks="Autorise l'emission de cheques">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="peut_recevoir_cheques" type="BOOLEAN" defaultValueBoolean="false"
+                    remarks="Autorise la reception de cheques">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="peut_transactions_especes" type="BOOLEAN" defaultValueBoolean="false"
+                    remarks="Autorise les transactions en especes">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="decouvert_autorise" type="BOOLEAN" defaultValueBoolean="false"
+                    remarks="Autorise le decouvert">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="decouvert_par_defaut" type="DECIMAL(15,2)" defaultValueNumeric="0"
+                    remarks="Montant de decouvert par defaut">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="is_active" type="BOOLEAN" defaultValueBoolean="true">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="ordre_affichage" type="INTEGER" defaultValueNumeric="0"
+                    remarks="Ordre de tri dans les listes"/>
+
+            <column name="created_at" type="TIMESTAMP WITH TIME ZONE"
+                    defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="updated_at" type="TIMESTAMP WITH TIME ZONE"
+                    defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <!-- Index -->
+        <createIndex indexName="idx_account_types_code" tableName="account_types" schemaName="treasury">
+            <column name="code"/>
+        </createIndex>
+        <createIndex indexName="idx_account_types_active" tableName="account_types" schemaName="treasury">
+            <column name="is_active"/>
+        </createIndex>
+    </changeSet>
+
+    <!-- ====================================================================== -->
+    <!-- CHANGESET 007-2: Create account_sub_types table                        -->
+    <!-- ====================================================================== -->
+    <changeSet id="007-2-create-account-sub-types-table" author="rtcomops">
+        <comment>Create account_sub_types table for sub-categories</comment>
+
+        <createTable tableName="account_sub_types" schemaName="treasury"
+                     remarks="Sous-types de comptes avec override des parametres">
+
+            <column name="id" type="UUID" defaultValueComputed="gen_random_uuid()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+
+            <column name="account_type_id" type="UUID"
+                    remarks="Type parent">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="code" type="VARCHAR(20)"
+                    remarks="Code unique du sous-type">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="libelle" type="VARCHAR(100)">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="description" type="VARCHAR(500)"/>
+
+            <!-- Overrides (NULL = heriter du parent) -->
+            <column name="peut_emettre_cheques_override" type="BOOLEAN"
+                    remarks="Override du parametre parent (NULL=heriter)"/>
+
+            <column name="peut_recevoir_cheques_override" type="BOOLEAN"/>
+
+            <column name="peut_transactions_especes_override" type="BOOLEAN"/>
+
+            <column name="decouvert_autorise_override" type="BOOLEAN"/>
+
+            <column name="decouvert_par_defaut_override" type="DECIMAL(15,2)"/>
+
+            <column name="is_active" type="BOOLEAN" defaultValueBoolean="true">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="ordre_affichage" type="INTEGER" defaultValueNumeric="0"/>
+
+            <column name="created_at" type="TIMESTAMP WITH TIME ZONE"
+                    defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+
+            <column name="updated_at" type="TIMESTAMP WITH TIME ZONE"
+                    defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <!-- Foreign Key -->
+        <addForeignKeyConstraint
+            baseTableSchemaName="treasury"
+            baseTableName="account_sub_types"
+            baseColumnNames="account_type_id"
+            referencedTableSchemaName="treasury"
+            referencedTableName="account_types"
+            referencedColumnNames="id"
+            constraintName="fk_account_sub_types_type_id"
+            onDelete="CASCADE"/>
+
+        <!-- Unique constraint -->
+        <addUniqueConstraint
+            schemaName="treasury"
+            tableName="account_sub_types"
+            columnNames="account_type_id, code"
+            constraintName="uq_account_sub_types_type_code"/>
+
+        <!-- Index -->
+        <createIndex indexName="idx_account_sub_types_type_id"
+                     tableName="account_sub_types" schemaName="treasury">
+            <column name="account_type_id"/>
+        </createIndex>
+    </changeSet>
+
+    <!-- ====================================================================== -->
+    <!-- CHANGESET 007-3: Insert default account types                          -->
+    <!-- ====================================================================== -->
+    <changeSet id="007-3-insert-default-account-types" author="rtcomops">
+        <comment>Insert default account types and sub-types</comment>
+
+        <!-- Types principaux -->
+        <insert tableName="account_types" schemaName="treasury">
+            <column name="code" value="CHEQUE"/>
+            <column name="libelle" value="Compte Cheque"/>
+            <column name="description" value="Compte courant avec chequier"/>
+            <column name="peut_emettre_cheques" valueBoolean="true"/>
+            <column name="peut_recevoir_cheques" valueBoolean="true"/>
+            <column name="peut_transactions_especes" valueBoolean="false"/>
+            <column name="decouvert_autorise" valueBoolean="true"/>
+            <column name="ordre_affichage" valueNumeric="1"/>
+        </insert>
+
+        <insert tableName="account_types" schemaName="treasury">
+            <column name="code" value="ESPECES"/>
+            <column name="libelle" value="Compte Especes"/>
+            <column name="description" value="Compte pour transactions en especes"/>
+            <column name="peut_emettre_cheques" valueBoolean="false"/>
+            <column name="peut_recevoir_cheques" valueBoolean="false"/>
+            <column name="peut_transactions_especes" valueBoolean="true"/>
+            <column name="decouvert_autorise" valueBoolean="false"/>
+            <column name="ordre_affichage" valueNumeric="2"/>
+        </insert>
+
+        <insert tableName="account_types" schemaName="treasury">
+            <column name="code" value="EPARGNE"/>
+            <column name="libelle" value="Compte Epargne"/>
+            <column name="description" value="Compte epargne remunere"/>
+            <column name="peut_emettre_cheques" valueBoolean="false"/>
+            <column name="peut_recevoir_cheques" valueBoolean="false"/>
+            <column name="peut_transactions_especes" valueBoolean="false"/>
+            <column name="decouvert_autorise" valueBoolean="false"/>
+            <column name="ordre_affichage" valueNumeric="3"/>
+        </insert>
+
+        <insert tableName="account_types" schemaName="treasury">
+            <column name="code" value="EMPLOYE"/>
+            <column name="libelle" value="Compte Employe"/>
+            <column name="description" value="Compte avances et prets employes"/>
+            <column name="peut_emettre_cheques" valueBoolean="false"/>
+            <column name="peut_recevoir_cheques" valueBoolean="false"/>
+            <column name="peut_transactions_especes" valueBoolean="true"/>
+            <column name="decouvert_autorise" valueBoolean="true"/>
+            <column name="ordre_affichage" valueNumeric="4"/>
+        </insert>
+    </changeSet>
+
+    <!-- ====================================================================== -->
+    <!-- CHANGESET 007-4: Add account_type_id to bank_accounts                  -->
+    <!-- ====================================================================== -->
+    <changeSet id="007-4-add-account-type-to-bank-accounts" author="rtcomops">
+        <comment>Add account_type_id column to bank_accounts table</comment>
+
+        <addColumn schemaName="treasury" tableName="bank_accounts">
+            <column name="account_type_id" type="UUID"
+                    remarks="Type de compte bancaire"/>
+        </addColumn>
+
+        <addColumn schemaName="treasury" tableName="bank_accounts">
+            <column name="account_sub_type_id" type="UUID"
+                    remarks="Sous-type de compte bancaire (optionnel)"/>
+        </addColumn>
+
+        <!-- Foreign Keys -->
+        <addForeignKeyConstraint
+            baseTableSchemaName="treasury"
+            baseTableName="bank_accounts"
+            baseColumnNames="account_type_id"
+            referencedTableSchemaName="treasury"
+            referencedTableName="account_types"
+            referencedColumnNames="id"
+            constraintName="fk_bank_accounts_type_id"
+            onDelete="SET NULL"/>
+
+        <addForeignKeyConstraint
+            baseTableSchemaName="treasury"
+            baseTableName="bank_accounts"
+            baseColumnNames="account_sub_type_id"
+            referencedTableSchemaName="treasury"
+            referencedTableName="account_sub_types"
+            referencedColumnNames="id"
+            constraintName="fk_bank_accounts_sub_type_id"
+            onDelete="SET NULL"/>
+    </changeSet>
+
+</databaseChangeLog>

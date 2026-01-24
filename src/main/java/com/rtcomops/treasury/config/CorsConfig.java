@@ -19,7 +19,8 @@ public class CorsConfig {
         corsConfig.setAllowedOrigins(Arrays.asList(
             "http://localhost:3000",                // Pour tes tests locaux
             "http://127.0.0.1:3000",                // Pour tes tests locaux
-            "https://banking-frontend1.vercel.app"  // 👈 AJOUT IMPORTANT : Ton site Vercel
+            "https://banking-frontend1.vercel.app",  // 👈 AJOUT IMPORTANT : Ton site Vercel
+            "https://banking-frontend1-kwjxlpibu-yimbouthedom-gmailcoms-projects.vercel.app"
         ));
         
         corsConfig.setAllowedMethods(Arrays.asList(

@@ -2,6 +2,7 @@ package com.rtcomops.treasury.controller;
 
 import com.rtcomops.treasury.dto.request.CreateCheckbookRequest;
 import com.rtcomops.treasury.dto.response.CheckbookResponse;
+import com.rtcomops.treasury.dto.response.CheckbookStatsResponse;
 import com.rtcomops.treasury.service.CheckbookService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -110,19 +111,27 @@ public class CheckbookController {
         return checkbookService.cancel(id).map(ResponseEntity::ok);
     }
 
-    @GetMapping("/{id}/next-number")
-    @Operation(summary = "Get and allocate next check number")
+   // NOUVELLE VERSION :
+@GetMapping("/{id}/peek-next-number") // "peek" = jeter un œil
+@Operation(summary = "Get the next available check number without allocating it")
+@ApiResponses({ /* ... */ })
+public Mono<ResponseEntity<Map<String, String>>> peekNextCheckNumber(@PathVariable UUID id) {
+    LOG.debug("REST request to peek next check number from checkbook id={}", id);
+    return checkbookService.peekNextCheckNumber(id) // Appel à une nouvelle méthode de service
+        .map(number -> ResponseEntity.ok(Map.of(
+            "checkbookId", id.toString(),
+            "checkNumber", number
+        )));
+}
+
+    @GetMapping("/{id}/stats")
+    @Operation(summary = "Get statistics for a specific checkbook")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "Next check number allocated"),
-        @ApiResponse(responseCode = "400", description = "No checks available"),
+        @ApiResponse(responseCode = "200", description = "Statistics retrieved"),
         @ApiResponse(responseCode = "404", description = "Checkbook not found")
     })
-    public Mono<ResponseEntity<Map<String, String>>> getNextCheckNumber(@PathVariable UUID id) {
-        LOG.debug("REST request to get next check number from checkbook id={}", id);
-        return checkbookService.getNextCheckNumber(id)
-            .map(number -> ResponseEntity.ok(Map.of(
-                "checkbookId", id.toString(),
-                "checkNumber", number
-            )));
+    public Mono<ResponseEntity<CheckbookStatsResponse>> getCheckbookStats(@PathVariable UUID id) {
+        LOG.debug("REST request to get stats for checkbook id={}", id);
+        return checkbookService.getStats(id).map(ResponseEntity::ok);
     }
 }

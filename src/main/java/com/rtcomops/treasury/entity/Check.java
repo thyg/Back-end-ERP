@@ -64,6 +64,12 @@ public class Check implements Persistable<UUID> {
     @Column("cashed_date")
     private LocalDate cashedDate;
 
+    @Column("receipt_date")
+    private LocalDate receiptDate;
+
+    @Column("emit_date")
+    private LocalDate emitDate;
+
     @Column("status")
     private String status;
 
@@ -81,6 +87,15 @@ public class Check implements Persistable<UUID> {
      */
     @Column("checkbook_id")
     private UUID checkbookId;
+
+    @Column("reference_code")
+    private String referenceCode;
+
+    @Column("image_url")
+    private String imageUrl;
+
+    @Column("issuer_bank")
+    private String issuerBank;
 
     /**
      * Amount written in words (e.g., "Cinq cent mille francs CFA").

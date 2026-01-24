@@ -37,9 +37,9 @@ public class CheckbookResponse {
     private String bankAccountName;
 
     /**
-     * RIB associated with the checkbook.
+     * IBAN associated with the checkbook.
      */
-    private String rib;
+    private String iban;
 
     /**
      * Common prefix/root for check numbers.
@@ -67,9 +67,24 @@ public class CheckbookResponse {
     private Integer availableChecks;
 
     /**
+     * Number of pages (checks) in the checkbook.
+     */
+    private Integer numberOfPages;
+
+    /**
      * Total number of checks in the checkbook.
      */
     private Integer totalChecks;
+
+    /**
+     * Checkbook type: REEL or FICTIF.
+     */
+    private String type;
+
+    /**
+     * Whether this is a system-managed checkbook.
+     */
+    private Boolean isSystem;
 
     /**
      * Status: ACTIVE, FINISHED, or CANCELLED.

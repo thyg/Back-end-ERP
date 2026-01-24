@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    008 - Checkbook Fictif System
+    Treasury Module - RT-ComOps ERP
+
+    Adds support for fictitious/system checkbook for received checks.
+
+    Author: RT-ComOps Team
+    Date: 2024-12-30
+-->
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.24.xsd">
+
+    <!-- ====================================================================== -->
+    <!-- CHANGESET 008-1: Add type and is_system to checkbooks                  -->
+    <!-- ====================================================================== -->
+    <changeSet id="008-1-add-checkbook-type-columns" author="rtcomops">
+        <comment>Add type and is_system columns to checkbooks table</comment>
+
+        <!-- Ajouter colonne type -->
+        <addColumn schemaName="treasury" tableName="checkbooks">
+            <column name="type" type="VARCHAR(20)" defaultValue="REEL"
+                    remarks="Type de chéquier: REEL ou FICTIF">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+
+        <!-- Ajouter colonne is_system -->
+        <addColumn schemaName="treasury" tableName="checkbooks">
+            <column name="is_system" type="BOOLEAN" defaultValueBoolean="false"
+                    remarks="Indique si c'est un chéquier système (non modifiable)">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+
+        <!-- Ajouter colonne next_sequence pour chéquier fictif -->
+        <addColumn schemaName="treasury" tableName="checkbooks">
+            <column name="next_sequence" type="BIGINT" defaultValueNumeric="1"
+                    remarks="Prochain numéro séquentiel (pour chéquier fictif)"/>
+        </addColumn>
+
+        <!-- Index sur type -->
+        <createIndex indexName="idx_checkbooks_type" tableName="checkbooks" schemaName="treasury">
+            <column name="type"/>
+        </createIndex>
+
+        <createIndex indexName="idx_checkbooks_is_system" tableName="checkbooks" schemaName="treasury">
+            <column name="is_system"/>
+        </createIndex>
+    </changeSet>
+
+    <!-- ====================================================================== -->
+    <!-- CHANGESET 008-2: Add check constraint for type values                  -->
+    <!-- ====================================================================== -->
+    <changeSet id="008-2-add-type-check-constraint" author="rtcomops">
+        <comment>Add check constraint for valid checkbook types</comment>
+
+        <sql>
+            ALTER TABLE treasury.checkbooks
+            ADD CONSTRAINT chk_checkbooks_type
+            CHECK (type IN ('REEL', 'FICTIF'));
+        </sql>
+    </changeSet>
+
+    <!-- ====================================================================== -->
+    <!-- CHANGESET 008-3: Modify constraints for fictif checkbook               -->
+    <!-- ====================================================================== -->
+    <changeSet id="008-3-modify-checkbook-constraints" author="rtcomops">
+        <comment>Allow NULL values in number columns for fictif checkbooks</comment>
+
+        <!-- Supprimer les anciennes contraintes si elles existent -->
+        <sql>
+            ALTER TABLE treasury.checkbooks
+            DROP CONSTRAINT IF EXISTS chk_checkbooks_number_range;
+
+            ALTER TABLE treasury.checkbooks
+            DROP CONSTRAINT IF EXISTS chk_checkbooks_current_in_range;
+        </sql>
+
+        <!-- Rendre les colonnes nullable pour supporter le chéquier fictif -->
+        <dropNotNullConstraint schemaName="treasury" tableName="checkbooks"
+                               columnName="start_number"/>
+        <dropNotNullConstraint schemaName="treasury" tableName="checkbooks"
+                               columnName="end_number"/>
+        <dropNotNullConstraint schemaName="treasury" tableName="checkbooks"
+                               columnName="current_number"/>
+        <dropNotNullConstraint schemaName="treasury" tableName="checkbooks"
+                               columnName="prefix"/>
+        <dropNotNullConstraint schemaName="treasury" tableName="checkbooks"
+                               columnName="rib"/>
+        <dropNotNullConstraint schemaName="treasury" tableName="checkbooks"
+                               columnName="bank_account_id"/>
+    </changeSet>
+
+    <!-- ====================================================================== -->
+    <!-- CHANGESET 008-4: Add conditional constraints for REEL checkbooks       -->
+    <!-- ====================================================================== -->
+    <changeSet id="008-4-add-conditional-constraints" author="rtcomops">
+        <comment>Add conditional constraints: REEL checkbooks must have number fields</comment>
+
+        <sql>
+            -- Pour les chéquiers REEL, les champs numériques sont obligatoires
+            ALTER TABLE treasury.checkbooks
+            ADD CONSTRAINT chk_checkbooks_reel_fields
+            CHECK (
+                type = 'FICTIF' OR (
+                    type = 'REEL'
+                    AND prefix IS NOT NULL
+                    AND start_number IS NOT NULL
+                    AND end_number IS NOT NULL
+                    AND current_number IS NOT NULL
+                    AND bank_account_id IS NOT NULL
+                    AND end_number > start_number
+                    AND current_number >= start_number
+                    AND current_number &lt;= end_number + 1
+                )
+            );
+        </sql>
+    </changeSet>
+
+</databaseChangeLog>

@@ -23,6 +23,7 @@ import com.rtcomops.treasury.repository.TransactionTypeRepository;
 import com.rtcomops.treasury.util.NumberToWordsConverter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import reactor.core.publisher.Flux;
@@ -58,6 +59,7 @@ public class CheckService {
     private final TransactionSequenceRepository sequenceRepository;
     private final CheckMapper checkMapper;
     private final AuditLogService auditLogService;
+    private final BalanceValidationService balanceValidationService;
 
     public CheckService(
             CheckRepository checkRepository,
@@ -67,7 +69,8 @@ public class CheckService {
             TransactionTypeRepository transactionTypeRepository,
             TransactionSequenceRepository sequenceRepository,
             CheckMapper checkMapper,
-            AuditLogService auditLogService) {
+            AuditLogService auditLogService,
+            BalanceValidationService balanceValidationService) {
         this.checkRepository = checkRepository;
         this.accountRepository = accountRepository;
         this.checkbookRepository = checkbookRepository;
@@ -76,13 +79,20 @@ public class CheckService {
         this.sequenceRepository = sequenceRepository;
         this.checkMapper = checkMapper;
         this.auditLogService = auditLogService;
+        this.balanceValidationService = balanceValidationService;
     }
 
     @Transactional(readOnly = true)
-    public Flux<CheckResponse> findAll() {
-        LOG.debug("Finding all checks");
-        return checkRepository.findAllOrderByDateDesc()
-            .flatMap(this::enrichWithAccountName);
+    public Flux<CheckResponse> findAll(@Nullable UUID checkbookId) {
+        Flux<Check> checks;
+        if (checkbookId != null) {
+            LOG.debug("Finding all checks for checkbookId={}", checkbookId);
+            checks = checkRepository.findByCheckbookId(checkbookId);
+        } else {
+            LOG.debug("Finding all checks");
+            checks = checkRepository.findAllOrderByDateDesc();
+        }
+        return checks.flatMap(this::enrichWithAccountName);
     }
 
     @Transactional(readOnly = true)
@@ -134,17 +144,29 @@ public class CheckService {
         return accountRepository.findById(request.getBankAccountId())
             .switchIfEmpty(Mono.error(new ResourceNotFoundException("BankAccount", request.getBankAccountId())))
             .flatMap(account -> {
-                // Vérification du solde pour les chèques ÉMIS uniquement
+                // Verification du solde pour les cheques EMIS uniquement
+                // Utilise le BalanceValidationService pour prendre en compte le decouvert
                 if ("ISSUED".equalsIgnoreCase(request.getCheckType())) {
-                    BigDecimal currentBalance = account.getCurrentBalance() != null
-                        ? account.getCurrentBalance()
-                        : BigDecimal.ZERO;
+                    return balanceValidationService.validateDebitOperation(
+                            request.getBankAccountId(), request.getAmount())
+                        .flatMap(balanceInfo -> {
+                            // Log si utilisation du decouvert
+                            if (balanceInfo.overdraftAuthorized()) {
+                                BigDecimal projectedBalance = balanceInfo.currentBalance()
+                                    .subtract(request.getAmount());
+                                if (projectedBalance.compareTo(BigDecimal.ZERO) < 0) {
+                                    LOG.info("Check {} will use overdraft: projected balance={}",
+                                        request.getCheckNumber(), projectedBalance);
+                                }
+                            }
 
-                    if (currentBalance.compareTo(request.getAmount()) < 0) {
-                        return Mono.error(new BusinessException(
-                            String.format("Solde insuffisant. Solde actuel: %s, Montant du chèque: %s",
-                                currentBalance, request.getAmount())));
-                    }
+                            // Continuer avec la creation
+                            if (request.getCheckbookId() != null) {
+                                return createCheckFromCheckbook(request, account);
+                            } else {
+                                return createCheckManual(request, account);
+                            }
+                        });
                 }
 
                 // If checkbookId is provided, get the next check number from the checkbook
@@ -315,16 +337,16 @@ public class CheckService {
         return checkRepository.findById(id)
             .switchIfEmpty(Mono.error(new ResourceNotFoundException(RESOURCE_NAME, id)))
             .flatMap(existing -> {
-                // Validation: seuls les chèques PENDING peuvent être déposés
-                if (!"PENDING".equals(existing.getStatus())) {
-                    return Mono.error(new BusinessException(
-                        "Seuls les chèques en attente peuvent être remis en banque"));
-                }
-
                 // Validation: seuls les chèques reçus peuvent être déposés
                 if (!"RECEIVED".equals(existing.getCheckType())) {
                     return Mono.error(new BusinessException(
                         "Seuls les chèques reçus peuvent être remis en banque"));
+                }
+
+                // Validation: seuls les chèques PENDING ou RECEIVED peuvent être déposés
+                if (!"PENDING".equals(existing.getStatus()) && !"RECEIVED".equals(existing.getStatus())) {
+                    return Mono.error(new BusinessException(
+                        "Seuls les chèques en attente ou reçus peuvent être remis en banque"));
                 }
 
                 Check original = existing.toBuilder().build();
@@ -360,10 +382,16 @@ public class CheckService {
                             "Un chèque reçu doit être remis en banque avant d'être encaissé"));
                     }
                 } else {
-                    // Chèque émis: peut être encaissé directement depuis PENDING
-                    if (!"PENDING".equals(existing.getStatus()) && !"DEPOSITED".equals(existing.getStatus())) {
+                        // Chèque émis: peut être encaissé depuis PENDING, ISSUED, ou DEPOSITED
+                    // ISSUED est maintenant inclus pour refléter la réalité métier (le chèque a été remis au fournisseur puis débité)
+                    if (!"PENDING".equals(existing.getStatus()) && 
+                        !"ISSUED".equals(existing.getStatus()) && 
+                        !"DEPOSITED".equals(existing.getStatus()) &&
+                        !"IN_PROGRESS".equals(existing.getStatus())) {
+                        
                         return Mono.error(new BusinessException(
-                            "Le chèque ne peut pas être encaissé dans son état actuel"));
+                            "Le chèque ne peut pas être encaissé dans son état actuel. " + 
+                            "Statut actuel : " + existing.getStatus()));
                     }
                 }
 
@@ -609,6 +637,84 @@ public class CheckService {
                             original,
                             saved,
                             "Annulation du chèque n°" + saved.getCheckNumber()
+                    ).thenReturn(saved))
+                    .flatMap(this::enrichWithAccountName);
+            });
+    }
+
+    /**
+     * Emits a check (hands it to the beneficiary).
+     * Transition: PENDING → ISSUED
+     * Only applicable to ISSUED type checks.
+     */
+    public Mono<CheckResponse> emit(UUID id, LocalDate emitDate) {
+        LOG.info("Emitting check id={} on date={}", id, emitDate);
+
+        return checkRepository.findById(id)
+            .switchIfEmpty(Mono.error(new ResourceNotFoundException(RESOURCE_NAME, id)))
+            .flatMap(existing -> {
+                if (!"ISSUED".equals(existing.getCheckType())) {
+                    return Mono.error(new BusinessException(
+                        "Seuls les chèques émis (ISSUED) peuvent être marqués comme émis"));
+                }
+                if (!"PENDING".equals(existing.getStatus())) {
+                    return Mono.error(new BusinessException(
+                        "Seuls les chèques en attente peuvent être émis. Statut actuel: " + existing.getStatus()));
+                }
+
+                Check original = existing.toBuilder().build();
+                existing.setStatus("ISSUED");
+                existing.setEmitDate(emitDate);
+                existing.setNew(false);
+
+                return checkRepository.save(existing)
+                    .flatMap(saved -> auditLogService.log(
+                            AuditModule.CHECK,
+                            AuditAction.UPDATE,
+                            saved.getId(),
+                            saved.getCheckNumber(),
+                            original,
+                            saved,
+                            "Émission du chèque n°" + saved.getCheckNumber() + " au bénéficiaire"
+                    ).thenReturn(saved))
+                    .flatMap(this::enrichWithAccountName);
+            });
+    }
+
+    /**
+     * Marks a received check as "in our possession".
+     * Transition: PENDING → RECEIVED
+     * Only applicable to RECEIVED type checks.
+     */
+    public Mono<CheckResponse> receive(UUID id, LocalDate receiveDate) {
+        LOG.info("Receiving check id={} on date={}", id, receiveDate);
+
+        return checkRepository.findById(id)
+            .switchIfEmpty(Mono.error(new ResourceNotFoundException(RESOURCE_NAME, id)))
+            .flatMap(existing -> {
+                if (!"RECEIVED".equals(existing.getCheckType())) {
+                    return Mono.error(new BusinessException(
+                        "Seuls les chèques reçus (RECEIVED) peuvent être marqués comme reçus"));
+                }
+                if (!"PENDING".equals(existing.getStatus())) {
+                    return Mono.error(new BusinessException(
+                        "Seuls les chèques en attente peuvent être marqués comme reçus"));
+                }
+
+                Check original = existing.toBuilder().build();
+                existing.setStatus("RECEIVED");
+                existing.setReceiptDate(receiveDate);
+                existing.setNew(false);
+
+                return checkRepository.save(existing)
+                    .flatMap(saved -> auditLogService.log(
+                            AuditModule.CHECK,
+                            AuditAction.UPDATE,
+                            saved.getId(),
+                            saved.getCheckNumber(),
+                            original,
+                            saved,
+                            "Réception du chèque n°" + saved.getCheckNumber()
                     ).thenReturn(saved))
                     .flatMap(this::enrichWithAccountName);
             });

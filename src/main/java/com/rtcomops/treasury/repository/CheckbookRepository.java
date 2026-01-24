@@ -85,10 +85,59 @@ public interface CheckbookRepository extends R2dbcRepository<Checkbook, UUID> {
             SELECT 1 FROM treasury.checkbooks
             WHERE bank_account_id = :accountId
             AND status != 'CANCELLED'
+            AND type = 'REEL'
             AND (
                 (start_number <= :endNumber AND end_number >= :startNumber)
             )
         )
         """)
     Mono<Boolean> existsOverlappingRange(UUID accountId, Integer startNumber, Integer endNumber);
+
+    /**
+     * Finds the system checkbook (fictif).
+     *
+     * @return Mono of the system checkbook if exists
+     */
+    @Query("SELECT * FROM treasury.checkbooks WHERE is_system = true LIMIT 1")
+    Mono<Checkbook> findByIsSystemTrue();
+
+    /**
+     * Finds checkbooks by type.
+     *
+     * @param type the checkbook type (REEL or FICTIF)
+     * @return Flux of checkbooks
+     */
+    @Query("SELECT * FROM treasury.checkbooks WHERE type = :type ORDER BY created_at DESC")
+    Flux<Checkbook> findByType(String type);
+
+    /**
+     * Finds all real (non-system) checkbooks.
+     *
+     * @return Flux of real checkbooks
+     */
+    @Query("SELECT * FROM treasury.checkbooks WHERE is_system = false ORDER BY created_at DESC")
+    Flux<Checkbook> findAllRealCheckbooks();
+
+    /**
+     * Atomically increments the next_sequence for fictif checkbook.
+     *
+     * @param id the checkbook ID
+     * @return the number of rows affected
+     */
+    @Modifying
+    @Query("""
+        UPDATE treasury.checkbooks
+        SET next_sequence = next_sequence + 1,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = :id AND type = 'FICTIF' AND is_system = true
+        """)
+    Mono<Long> incrementNextSequence(UUID id);
+
+    /**
+     * Gets the current next_sequence value for the fictif checkbook.
+     *
+     * @return the next sequence number
+     */
+    @Query("SELECT next_sequence FROM treasury.checkbooks WHERE is_system = true LIMIT 1")
+    Mono<Long> getNextSequence();
 }

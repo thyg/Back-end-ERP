@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    009 - Overdraft Management
+    Treasury Module - RT-ComOps ERP
+
+    Adds overdraft support to bank accounts.
+
+    Author: RT-ComOps Team
+    Date: 2024-12-30
+-->
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.24.xsd">
+
+    <!-- ====================================================================== -->
+    <!-- CHANGESET 009-1: Add overdraft columns to bank_accounts                -->
+    <!-- ====================================================================== -->
+    <changeSet id="009-1-add-overdraft-to-bank-accounts" author="rtcomops">
+        <comment>Add overdraft limit and authorization to bank_accounts</comment>
+
+        <addColumn schemaName="treasury" tableName="bank_accounts">
+            <column name="overdraft_authorized" type="BOOLEAN" defaultValueBoolean="false"
+                    remarks="Indique si le decouvert est autorise pour ce compte">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+
+        <addColumn schemaName="treasury" tableName="bank_accounts">
+            <column name="overdraft_limit" type="DECIMAL(15,2)" defaultValueNumeric="0"
+                    remarks="Limite de decouvert autorisee (en devise du compte)">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+
+        <!-- Contrainte: overdraft_limit >= 0 -->
+        <sql>
+            ALTER TABLE treasury.bank_accounts
+            ADD CONSTRAINT chk_bank_accounts_overdraft_positive
+            CHECK (overdraft_limit >= 0);
+        </sql>
+    </changeSet>
+
+</databaseChangeLog>

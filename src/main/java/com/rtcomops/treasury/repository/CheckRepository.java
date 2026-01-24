@@ -1,5 +1,6 @@
 package com.rtcomops.treasury.repository;
 
+import com.rtcomops.treasury.dto.response.CheckbookStatsResponse;
 import com.rtcomops.treasury.entity.Check;
 import org.springframework.data.r2dbc.repository.Query;
 import org.springframework.data.r2dbc.repository.R2dbcRepository;
@@ -46,4 +47,27 @@ public interface CheckRepository extends R2dbcRepository<Check, UUID> {
 
     @Query("SELECT COUNT(*) > 0 FROM treasury.checks WHERE check_number = :checkNumber AND bank_account_id = :accountId AND check_type = :checkType AND id != :id")
     Mono<Boolean> existsByCheckNumberAndAccountAndTypeAndIdNot(String checkNumber, UUID accountId, String checkType, UUID id);
+
+    /**
+     * Finds all checks belonging to a specific checkbook.
+     *
+     * @param checkbookId the ID of the checkbook
+     * @return Flux of checks from that checkbook, ordered by issue date
+     */
+    @Query("SELECT * FROM treasury.checks WHERE checkbook_id = :checkbookId ORDER BY issue_date DESC, created_at DESC")
+    Flux<Check> findByCheckbookId(UUID checkbookId);
+
+    /**
+     * Gathers statistics for a specific checkbook.
+     *
+     * @param checkbookId the ID of the checkbook
+     * @return Mono containing the calculated statistics
+     */
+    @Query("SELECT " +
+           "  COUNT(*) AS usedChecksCount, " +
+           "  COALESCE(SUM(amount), 0) AS totalAmountIssued, " +
+           "  COALESCE(SUM(CASE WHEN status = 'CASHED' THEN amount ELSE 0 END), 0) AS totalAmountCashed " +
+           "FROM treasury.checks " +
+           "WHERE checkbook_id = :checkbookId")
+    Mono<CheckbookStatsResponse> getStatsByCheckbookId(UUID checkbookId);
 }

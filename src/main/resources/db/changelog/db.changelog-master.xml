@@ -23,4 +23,16 @@
     <!-- Fix: Augmenter la taille du RIB dans checkbooks -->
     <include file="db/changelog/006-fix-checkbook-rib-size.xml"/>
 
+    <!-- Increment 7: Account Types Configuration -->
+    <include file="db/changelog/007-account-types.xml"/>
+
+    <!-- Increment 8: Checkbook Fictif System -->
+    <include file="db/changelog/008-checkbook-fictif.xml"/>
+
+    <!-- Increment 9: Overdraft Management -->
+    <include file="db/changelog/009-overdraft.xml"/>
+
+    <!-- Increment 10: Phase 1 Corrections - Check & Checkbook Enhancements -->
+    <include file="db/changelog/010-phase1-corrections.xml"/>
+
 </databaseChangeLog>

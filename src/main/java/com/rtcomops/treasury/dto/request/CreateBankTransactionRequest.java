@@ -52,4 +52,11 @@ public class CreateBankTransactionRequest {
 
     @Size(max = 100, message = "Partner name must not exceed 100 characters")
     private String partnerName;
+
+    /**
+     * Optional ID of a check to link to this transaction.
+     * If provided, the check's status will be updated to CASHED
+     * and the transaction will be created with VALIDATED status.
+     */
+    private UUID checkId;
 }

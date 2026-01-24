@@ -38,9 +38,14 @@ public class CheckResponse {
     private LocalDate dueDate;
     private LocalDate depositDate;
     private LocalDate cashedDate;
+    private LocalDate receiptDate;
+    private LocalDate emitDate;
     private String status;
     private String description;
     private String rejectionReason;
+    private String referenceCode;
+    private String imageUrl;
+    private String issuerBank;
     private UUID bankTransactionId;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

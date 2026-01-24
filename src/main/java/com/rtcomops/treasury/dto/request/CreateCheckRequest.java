@@ -60,6 +60,11 @@ public class CreateCheckRequest {
 
     private LocalDate dueDate;
 
+    private LocalDate receiptDate;
+
+    @Size(max = 100, message = "Issuer bank must not exceed 100 characters")
+    private String issuerBank;
+
     @Size(max = 255, message = "Description must not exceed 255 characters")
     private String description;
 }
