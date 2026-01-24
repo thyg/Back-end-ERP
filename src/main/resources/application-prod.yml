@@ -1,0 +1,16 @@
+# Configurations spécifiques à la PRODUCTION
+spring:
+  r2dbc:
+    url: r2dbc:postgresql://${DB_HOST:ep-shy-wind-agssb5wj-pooler.c-2.eu-central-1.aws.neon.tech}:${DB_PORT:5432}/${DB_NAME:neondb}?sslMode=require
+    username: ${DB_USER:neondb_owner}
+    password: ${DB_PASSWORD:npg_QBbt1rDgGaO9}
+    pool:
+      initial-size: 5
+      max-size: 20
+      max-idle-time: 30m
+
+  datasource: # Pour Liquibase
+    url: jdbc:postgresql://${DB_HOST:ep-shy-wind-agssb5wj-pooler.c-2.eu-central-1.aws.neon.tech}:${DB_PORT:5432}/${DB_NAME:neondb}?sslmode=require
+    username: ${DB_USER:neondb_owner}
+    password: ${DB_PASSWORD:npg_QBbt1rDgGaO9}
+    driver-class-name: org.postgresql.Driver

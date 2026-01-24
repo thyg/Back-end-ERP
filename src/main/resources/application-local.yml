@@ -1,0 +1,15 @@
+# Configurations spécifiques au développement LOCAL
+spring:
+  r2dbc:
+    url: r2dbc:postgresql://localhost:5432/treasury_db
+    username: treasury_user
+    password: treasury_password_2024
+    pool:
+      initial-size: 2
+      max-size: 10
+
+  datasource: # Pour Liquibase
+    url: jdbc:postgresql://localhost:5432/treasury_db
+    username: treasury_user
+    password: treasury_password_2024
+    driver-class-name: org.postgresql.Driver

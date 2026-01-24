@@ -1,3 +1,4 @@
+# Configurations communes à TOUS les environnements
 server:
   port: ${PORT:8080}
 
@@ -5,21 +6,6 @@ spring:
   application:
     name: treasury-api
   
-  r2dbc:
-    url: r2dbc:postgresql://ep-shy-wind-agssb5wj-pooler.c-2.eu-central-1.aws.neon.tech:5432/neondb?sslMode=require
-    username: neondb_owner
-    password: npg_QBbt1rDgGaO9
-    pool:
-      initial-size: 5
-      max-size: 20
-      max-idle-time: 30m
-
-  datasource:
-    url: jdbc:postgresql://ep-shy-wind-agssb5wj-pooler.c-2.eu-central-1.aws.neon.tech:5432/neondb?sslmode=require
-    username: neondb_owner
-    password: npg_QBbt1rDgGaO9
-    driver-class-name: org.postgresql.Driver
-
   liquibase:
     enabled: true
     change-log: classpath:db/changelog/db.changelog-master.xml
@@ -27,8 +13,9 @@ spring:
 logging:
   level:
     root: INFO
-    com.rtcomops.treasury: DEBUG
-    io.r2dbc.postgresql: DEBUG
+    com.rtcomops.treasury: DEBUG # Très détaillé pour votre code
+    org.springframework.r2dbc: INFO # Moins verbeux pour r2dbc
+    io.r2dbc.postgresql: INFO
 
 management:
   endpoints:
