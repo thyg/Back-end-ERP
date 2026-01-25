@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.24.xsd">
+
+    <!-- ================================================================== -->
+    <!-- Increment 14: Fix account_number column                            -->
+    <!-- The column was renamed to deprecated_account_number but we need    -->
+    <!-- a new account_number column for the IBAN generator feature         -->
+    <!-- ================================================================== -->
+
+    <changeSet id="014-01-add-account-number-column" author="rt-comops">
+        <comment>Add new account_number column (nullable) for bank accounts</comment>
+        <addColumn tableName="bank_accounts" schemaName="treasury">
+            <column name="account_number" type="VARCHAR(50)">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+    </changeSet>
+
+    <!-- Drop the NOT NULL constraint on deprecated_account_number if it exists -->
+    <changeSet id="014-02-make-deprecated-account-number-nullable" author="rt-comops">
+        <comment>Make deprecated_account_number nullable to avoid constraint issues</comment>
+        <dropNotNullConstraint
+            tableName="bank_accounts"
+            schemaName="treasury"
+            columnName="deprecated_account_number"
+            columnDataType="VARCHAR(50)"/>
+    </changeSet>
+
+</databaseChangeLog>

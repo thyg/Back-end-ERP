@@ -11,6 +11,7 @@ import org.springframework.data.annotation.Transient;
 import org.springframework.data.domain.Persistable;
 import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
+import io.r2dbc.postgresql.codec.Json;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -57,6 +58,18 @@ public class BankAccount implements Persistable<UUID> {
     @Column("account_number")
     private String accountNumber;
 
+    /**
+     * Branch/agency code (5 digits) for IBAN generation.
+     */
+    @Column("branch_code")
+    private String branchCode;
+
+    /**
+     * Generated IBAN based on bank code, branch code, and account number.
+     */
+    @Column("generated_iban")
+    private String generatedIban;
+
     @Column("iban")
     private String iban;
 
@@ -74,6 +87,12 @@ public class BankAccount implements Persistable<UUID> {
 
     @Column("is_active")
     private Boolean isActive;
+
+    @Column("connector_type_id")
+    private UUID connectorTypeId;
+    
+    @Column("details")
+    private Json details; 
 
     /**
      * Indicates if overdraft is authorized for this account.

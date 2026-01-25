@@ -35,4 +35,15 @@
     <!-- Increment 10: Phase 1 Corrections - Check & Checkbook Enhancements -->
     <include file="db/changelog/010-phase1-corrections.xml"/>
 
+
+    <include file="db/changelog/011-fix-check-statuses.xml"/>
+
+    <include file="db/changelog/012-refactor-account-model.xml"/>
+
+    <!-- Increment 13: IBAN Generator Support -->
+    <include file="db/changelog/013-iban-generator.xml"/>
+
+    <!-- Increment 14: Fix account_number column -->
+    <include file="db/changelog/014-fix-account-number-column.xml"/>
+
 </databaseChangeLog>

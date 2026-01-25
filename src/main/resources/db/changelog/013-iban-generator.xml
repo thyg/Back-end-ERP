@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.24.xsd">
+
+    <!-- ================================================================== -->
+    <!-- Increment 13: IBAN Generator Support                               -->
+    <!-- Adds bank_code to banks table and branch_code to bank_accounts     -->
+    <!-- ================================================================== -->
+
+    <changeSet id="013-01-add-bank-code-to-banks" author="rt-comops">
+        <comment>Add national bank code (5 digits) for IBAN generation</comment>
+        <addColumn tableName="banks" schemaName="treasury">
+            <column name="bank_code" type="VARCHAR(5)">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+    </changeSet>
+
+    <changeSet id="013-02-add-branch-code-to-bank-accounts" author="rt-comops">
+        <comment>Add branch/agency code (5 digits) for IBAN generation</comment>
+        <addColumn tableName="bank_accounts" schemaName="treasury">
+            <column name="branch_code" type="VARCHAR(5)">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+    </changeSet>
+
+    <changeSet id="013-03-add-generated-iban-to-bank-accounts" author="rt-comops">
+        <comment>Add generated IBAN field to store the computed IBAN</comment>
+        <addColumn tableName="bank_accounts" schemaName="treasury">
+            <column name="generated_iban" type="VARCHAR(34)">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+    </changeSet>
+
+</databaseChangeLog>

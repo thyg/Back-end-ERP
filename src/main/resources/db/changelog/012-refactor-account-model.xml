@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.24.xsd">
+
+    <changeSet id="012-1-create-bank-categories-table" author="rtcomops">
+        <comment>Cree une table de reference pour les categories de banques (flexible)</comment>
+        <createTable tableName="bank_categories" schemaName="treasury"
+                     remarks="Catégories d'institutions financières (Banque, Mobile Money, etc.)">
+            <column name="id" type="UUID" defaultValueComputed="gen_random_uuid()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="code" type="VARCHAR(50)">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="label" type="VARCHAR(100)">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="012-2-insert-default-bank-categories" author="rtcomops">
+        <comment>Insere les categories de banques par defaut</comment>
+        <insert tableName="bank_categories" schemaName="treasury"><column name="code" value="BANK"/><column name="label" value="Banque traditionnelle"/></insert>
+        <insert tableName="bank_categories" schemaName="treasury"><column name="code" value="MOBILE_MONEY"/><column name="label" value="Opérateur Mobile Money"/></insert>
+        <insert tableName="bank_categories" schemaName="treasury"><column name="code" value="MICROFINANCE"/><column name="label" value="Microfinance"/></insert>
+        <insert tableName="bank_categories" schemaName="treasury"><column name="code" value="OTHER"/><column name="label" value="Autre"/></insert>
+    </changeSet>
+
+    <changeSet id="012-3-add-category-fk-to-banks" author="rtcomops">
+        <comment>Ajoute la cle etrangere bank_category_id a la table banks</comment>
+        <addColumn tableName="banks" schemaName="treasury">
+            <column name="bank_category_id" type="UUID" remarks="Lien vers la catégorie de l'institution"/>
+        </addColumn>
+        <addForeignKeyConstraint constraintName="fk_banks_category_id"
+                                 baseTableName="banks" baseTableSchemaName="treasury" baseColumnNames="bank_category_id"
+                                 referencedTableName="bank_categories" referencedTableSchemaName="treasury" referencedColumnNames="id"
+                                 onDelete="SET NULL"/>
+    </changeSet>
+
+    <changeSet id="012-4-add-mobile-money-account-type" author="rtcomops">
+        <comment>Ajoute le type de compte 'MOBILE_MONEY' a la table account_types</comment>
+        <!-- (Ce changeset reste identique) -->
+        <insert tableName="account_types" schemaName="treasury">
+            <column name="id" valueComputed="gen_random_uuid()"/><column name="code" value="MOBILE_MONEY"/><column name="libelle" value="Compte Mobile Money"/><column name="description" value="Compte pour les transactions d'argent mobile (OM, MOMO, etc.)"/><column name="peut_emettre_cheques" valueBoolean="false"/><column name="peut_recevoir_cheques" valueBoolean="false"/><column name="peut_transactions_especes" valueBoolean="true"/><column name="decouvert_autorise" valueBoolean="false"/><column name="ordre_affichage" valueNumeric="4"/>
+        </insert>
+        <update tableName="account_types" schemaName="treasury"><column name="ordre_affichage" valueNumeric="5"/><where>code = 'EMPLOYE'</where></update>
+    </changeSet>
+    
+    <!-- ====================================================================== -->
+<!-- CHANGESET 012-5: Créer les tables de connecteurs (VERSION CORRIGÉE)      -->
+<!-- ====================================================================== -->
+<changeSet id="012-5-create-connector-tables-flexible" author="rtcomops">
+    <comment>Cree les tables pour les 'Account Connector Types' avec lien flexible aux categories</comment>
+
+    <createTable tableName="account_connector_types" schemaName="treasury">
+        <column name="id" type="UUID" defaultValueComputed="gen_random_uuid()"><constraints primaryKey="true" nullable="false"/></column>
+        <column name="code" type="VARCHAR(50)"><constraints nullable="false" unique="true"/></column>
+        <column name="name" type="VARCHAR(100)"><constraints nullable="false"/></column>
+        <column name="bank_category_id" type="UUID" remarks="Lie ce connecteur a une categorie de banque"><constraints nullable="false"/></column>
+    </createTable>
+    
+    <!-- On ajoute la clé étrangère pour 'account_connector_types' séparément -->
+    <addForeignKeyConstraint constraintName="fk_connector_category_id"
+                             baseTableName="account_connector_types" baseTableSchemaName="treasury" baseColumnNames="bank_category_id"
+                             referencedTableName="bank_categories" referencedTableSchemaName="treasury" referencedColumnNames="id"/>
+
+    <createTable tableName="account_connector_fields" schemaName="treasury">
+        <column name="id" type="UUID" defaultValueComputed="gen_random_uuid()"><constraints primaryKey="true" nullable="false"/></column>
+        <column name="connector_type_id" type="UUID">
+            <!-- La colonne est juste nullable=false ici -->
+            <constraints nullable="false"/>
+        </column>
+        <column name="field_key" type="VARCHAR(50)"><constraints nullable="false"/></column>
+        <column name="label" type="VARCHAR(100)"><constraints nullable="false"/></column>
+        <column name="field_type" type="VARCHAR(20)" defaultValue="TEXT"><constraints nullable="false"/></column>
+        <column name="is_required" type="BOOLEAN" defaultValueBoolean="true"><constraints nullable="false"/></column>
+        <column name="display_order" type="INTEGER" defaultValueNumeric="0"><constraints nullable="false"/></column>
+    </createTable>
+
+    <!-- On ajoute la clé étrangère pour 'account_connector_fields' séparément, avec onDelete -->
+    <addForeignKeyConstraint constraintName="fk_connector_fields_type"
+                             baseTableName="account_connector_fields" baseTableSchemaName="treasury" baseColumnNames="connector_type_id"
+                             referencedTableName="account_connector_types" referencedTableSchemaName="treasury" referencedColumnNames="id"
+                             onDelete="CASCADE"/>
+    
+    <addUniqueConstraint tableName="account_connector_fields" schemaName="treasury" columnNames="connector_type_id, field_key" constraintName="uq_connector_field_key"/>
+</changeSet>
+
+   <changeSet id="012-6-insert-connectors-v2" author="rtcomops">
+        <comment>Insere les connecteurs par defaut en utilisant les IDs des categories</comment>
+        <sql splitStatements="false">
+            DO $$
+            DECLARE
+              bank_category_id UUID;
+              connector_id UUID := gen_random_uuid();
+            BEGIN
+              SELECT id INTO bank_category_id FROM treasury.bank_categories WHERE code = 'BANK';
+
+              INSERT INTO treasury.account_connector_types(id, code, name, bank_category_id) VALUES (connector_id, 'STD_BANK', 'Compte Bancaire Standard', bank_category_id);
+              INSERT INTO treasury.account_connector_fields(connector_type_id, field_key, label, field_type, is_required, display_order) VALUES
+                (connector_id, 'accountNumber', 'Numéro de Compte', 'TEXT', true, 1),
+                (connector_id, 'iban', 'IBAN', 'TEXT', false, 2),
+                (connector_id, 'bic', 'BIC / SWIFT', 'TEXT', false, 3);
+            END $$;
+        </sql>
+        <sql splitStatements="false">
+            DO $$
+            DECLARE
+              mobile_category_id UUID;
+              connector_id UUID := gen_random_uuid();
+            BEGIN
+              SELECT id INTO mobile_category_id FROM treasury.bank_categories WHERE code = 'MOBILE_MONEY';
+
+              INSERT INTO treasury.account_connector_types(id, code, name, bank_category_id) VALUES (connector_id, 'MOBILE_MONEY', 'Compte Mobile Money', mobile_category_id);
+              INSERT INTO treasury.account_connector_fields(connector_type_id, field_key, label, field_type, is_required, display_order) VALUES
+                (connector_id, 'phoneNumber', 'Numéro de Téléphone', 'PHONE', true, 1),
+                (connector_id, 'holderName', 'Nom complet du titulaire', 'TEXT', true, 2);
+            END $$;
+        </sql>
+    </changeSet>
+
+    <!-- ====================================================================== -->
+<!-- CHANGESET 012-7: Refactor bank_accounts table (VERSION CORRIGÉE)         -->
+<!-- ====================================================================== -->
+<changeSet id="012-7-refactor-bank-accounts-table" author="rtcomops">
+    <comment>Modifie la table bank_accounts pour utiliser les connecteurs et un champ JSONB</comment>
+    
+    <!-- Étape 1: Ajouter les nouvelles colonnes SANS les clés étrangères -->
+    <addColumn tableName="bank_accounts" schemaName="treasury">
+        <column name="connector_type_id" type="UUID"
+                remarks="Lien vers le modèle de formulaire du compte">
+            <constraints nullable="true"/>
+        </column>
+    </addColumn>
+    <addColumn tableName="bank_accounts" schemaName="treasury">
+        <column name="details" type="JSONB"
+                remarks="Stocke les champs spécifiques au type de compte (numero tel, etc.)"/>
+    </addColumn>
+
+    <!-- Étape 2: Ajouter la clé étrangère séparément, avec onDelete -->
+    <addForeignKeyConstraint constraintName="fk_bank_accounts_connector_type"
+                             baseTableName="bank_accounts" baseTableSchemaName="treasury"
+                             baseColumnNames="connector_type_id"
+                             referencedTableName="account_connector_types" referencedTableSchemaName="treasury"
+                             referencedColumnNames="id"
+                             onDelete="SET NULL"/>
+
+    <!-- Étape 3: Renommer les anciennes colonnes -->
+    <renameColumn tableName="bank_accounts" schemaName="treasury" oldColumnName="account_number" newColumnName="deprecated_account_number" columnDataType="VARCHAR(50)"/>
+    <renameColumn tableName="bank_accounts" schemaName="treasury" oldColumnName="iban" newColumnName="deprecated_iban" columnDataType="VARCHAR(34)"/>
+    <renameColumn tableName="bank_accounts" schemaName="treasury" oldColumnName="bic" newColumnName="deprecated_bic" columnDataType="VARCHAR(11)"/>
+</changeSet>
+
+</databaseChangeLog>

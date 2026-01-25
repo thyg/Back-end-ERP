@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.24.xsd">
+
+    <changeSet id="011-1-update-check-status-constraint" author="rtcomops">
+        <comment>Ajoute les statuts ISSUED, RECEIVED et IN_PROGRESS a la contrainte de la table checks</comment>
+        
+        <sql>
+            -- Supprimer l'ancienne contrainte pour la remplacer
+            ALTER TABLE treasury.checks DROP CONSTRAINT IF EXISTS chk_check_status;
+            
+            -- Créer la nouvelle contrainte avec tous les statuts valides
+            ALTER TABLE treasury.checks
+            ADD CONSTRAINT chk_check_status
+            CHECK (status IN (
+                'PENDING',      -- En attente (créé)
+                'ISSUED',       -- Émis (remis au bénéficiaire)
+                'RECEIVED',     -- Reçu (en notre possession)
+                'DEPOSITED',    -- Remis en banque
+                'IN_PROGRESS',  -- En cours de traitement
+                'CASHED',       -- Encaissé / Débité
+                'REJECTED',     -- Rejeté
+                'CANCELLED'     -- Annulé
+            ));
+        </sql>
+        
+        <rollback>
+            <sql>
+                ALTER TABLE treasury.checks DROP CONSTRAINT IF EXISTS chk_check_status;
+                -- Revenir à l'ancienne contrainte en cas de rollback
+                ALTER TABLE treasury.checks
+                ADD CONSTRAINT chk_check_status
+                CHECK (status IN ('PENDING', 'DEPOSITED', 'CASHED', 'REJECTED', 'CANCELLED'));
+            </sql>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

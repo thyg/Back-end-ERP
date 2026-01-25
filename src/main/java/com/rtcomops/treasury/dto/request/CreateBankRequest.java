@@ -8,6 +8,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.UUID;
+
 /**
  * DTO for creating a new bank.
  *
@@ -40,12 +42,18 @@ public class CreateBankRequest {
     private String name;
 
     /**
-     * SWIFT/BIC code (8 or 11 characters).
+     * SWIFT/BIC code (optional, max 11 characters).
      */
     @Size(max = 11, message = "SWIFT code must not exceed 11 characters")
-    @Pattern(regexp = "^$|^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$", 
-             message = "Invalid SWIFT code format")
+    @Pattern(regexp = "^[A-Za-z0-9]*$", message = "SWIFT code must contain only letters and numbers")
     private String swiftCode;
+
+    /**
+     * National bank code (5 digits) for IBAN generation.
+     */
+    @Size(max = 5, message = "Bank code must not exceed 5 characters")
+    @Pattern(regexp = "^[0-9]*$", message = "Bank code must contain only digits")
+    private String bankCode;
 
     /**
      * Country where the bank is located.
@@ -63,4 +71,9 @@ public class CreateBankRequest {
      * Whether the bank is active. Defaults to true if not specified.
      */
     private Boolean isActive;
+
+    /**
+     * The category of the bank (e.g., BANK, MOBILE_MONEY, MICROFINANCE).
+     */
+    private UUID bankCategoryId;
 }

@@ -7,6 +7,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.UUID;
+
 /**
  * DTO for updating an existing bank.
  *
@@ -39,9 +41,15 @@ public class UpdateBankRequest {
      * Updated SWIFT code (optional).
      */
     @Size(max = 11, message = "SWIFT code must not exceed 11 characters")
-    @Pattern(regexp = "^$|^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$", 
-             message = "Invalid SWIFT code format")
+    @Pattern(regexp = "^[A-Za-z0-9]*$", message = "SWIFT code must contain only letters and numbers")
     private String swiftCode;
+
+    /**
+     * Updated national bank code (5 digits) for IBAN generation.
+     */
+    @Size(max = 5, message = "Bank code must not exceed 5 characters")
+    @Pattern(regexp = "^[0-9]*$", message = "Bank code must contain only digits")
+    private String bankCode;
 
     /**
      * Updated country (optional).
@@ -59,4 +67,9 @@ public class UpdateBankRequest {
      * Updated active status (optional).
      */
     private Boolean isActive;
+
+    /**
+     * Updated bank category (optional).
+     */
+    private UUID bankCategoryId;
 }

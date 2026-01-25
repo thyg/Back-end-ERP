@@ -59,6 +59,13 @@ public class Bank implements Persistable<UUID> {
     private String swiftCode;
 
     /**
+     * National bank code (5 digits) used for IBAN generation.
+     * This is different from SWIFT code.
+     */
+    @Column("bank_code")
+    private String bankCode;
+
+    /**
      * Country where the bank is headquartered.
      */
     @Column("country")
@@ -76,6 +83,8 @@ public class Bank implements Persistable<UUID> {
     @Column("is_active")
     private Boolean isActive;
 
+   @Column("bank_category_id")
+    private UUID bankCategoryId;
     /**
      * Timestamp when the record was created.
      */

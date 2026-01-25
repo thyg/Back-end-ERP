@@ -27,9 +27,11 @@ public class BankResponse {
     private String code;
     private String name;
     private String swiftCode;
+    private String bankCode;
     private String country;
     private String address;
     private Boolean isActive;
+    private UUID bankCategoryId;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

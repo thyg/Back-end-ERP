@@ -37,9 +37,11 @@ public class BankMapper {
             .code(request.getCode().toUpperCase())
             .name(request.getName())
             .swiftCode(request.getSwiftCode())
+            .bankCode(request.getBankCode())
             .country(request.getCountry())
             .address(request.getAddress())
             .isActive(request.getIsActive() != null ? request.getIsActive() : true)
+            .bankCategoryId(request.getBankCategoryId())
             .createdAt(now)
             .updatedAt(now)
             .isNew(true)  // Mark as new for INSERT
@@ -64,6 +66,9 @@ public class BankMapper {
         if (request.getSwiftCode() != null) {
             existing.setSwiftCode(request.getSwiftCode());
         }
+        if (request.getBankCode() != null) {
+            existing.setBankCode(request.getBankCode());
+        }
         if (request.getCountry() != null) {
             existing.setCountry(request.getCountry());
         }
@@ -72,6 +77,9 @@ public class BankMapper {
         }
         if (request.getIsActive() != null) {
             existing.setIsActive(request.getIsActive());
+        }
+        if (request.getBankCategoryId() != null) {
+            existing.setBankCategoryId(request.getBankCategoryId());
         }
         existing.setUpdatedAt(LocalDateTime.now());
         existing.setNew(false);  // Mark as NOT new for UPDATE
@@ -91,9 +99,11 @@ public class BankMapper {
             .code(entity.getCode())
             .name(entity.getName())
             .swiftCode(entity.getSwiftCode())
+            .bankCode(entity.getBankCode())
             .country(entity.getCountry())
             .address(entity.getAddress())
             .isActive(entity.getIsActive())
+            .bankCategoryId(entity.getBankCategoryId())
             .createdAt(entity.getCreatedAt())
             .updatedAt(entity.getUpdatedAt())
             .build();

@@ -85,6 +85,8 @@ Les scripts de migration se trouvent dans `src/main/resources/db/changelog/`.
 
     ```bash
     mvn spring-boot:run
+
+    mvn spring-boot:run -Dspring-boot.run.profiles=local
     ```
 
 3.  **Consulter la documentation de l'API :**

@@ -10,6 +10,9 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.Map; // Import
+import java.util.UUID; // Import
+
 import java.math.BigDecimal;
 import java.util.UUID;
 
@@ -29,27 +32,43 @@ public class CreateBankAccountRequest {
     @NotNull(message = "Bank ID is required")
     private UUID bankId;
 
+    private UUID accountTypeId;
+
+    private UUID accountSubTypeId;
+
+    private UUID connectorTypeId;
+
+    private UUID journalId;
+
     @NotBlank(message = "Account name is required")
-    @Size(min = 2, max = 100, message = "Name must be between 2 and 100 characters")
+    @Size(min = 2, max = 100)
     private String name;
 
-    @NotBlank(message = "Account number is required")
-    @Size(min = 5, max = 50, message = "Account number must be between 5 and 50 characters")
+    /**
+     * Branch/agency code (5 digits) for IBAN generation.
+     */
+    @Size(max = 5, message = "Branch code must not exceed 5 characters")
+    @Pattern(regexp = "^[0-9]*$", message = "Branch code must contain only digits")
+    private String branchCode;
+
+    /**
+     * Account number (11 digits for Cameroon).
+     */
     private String accountNumber;
 
-    @Size(max = 34, message = "L'IBAN ne doit pas dépasser 34 caractères")
-    @ValidIban
-    private String iban;
+    /**
+     * Generated IBAN (computed from bank code, branch code, and account number).
+     */
+    private String generatedIban;
 
-    @Size(max = 11, message = "BIC must not exceed 11 characters")
-    @Pattern(regexp = "^$|^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$", message = "Invalid BIC format")
-    private String bic;
-
-    @Pattern(regexp = "^(EUR|USD|XAF|XOF|GBP|CHF|CAD|JPY)$", 
-             message = "Currency must be EUR, USD, XAF, XOF, GBP, CHF, CAD, or JPY")
     private String currency;
-
     private BigDecimal initialBalance;
-
     private Boolean isActive;
+
+    // Gestion du découvert
+    private Boolean overdraftAllowed;
+    private BigDecimal overdraftLimit;
+
+    // Champ pour les données dynamiques (numéro de tél, etc.)
+    private Map<String, Object> details;
 }
