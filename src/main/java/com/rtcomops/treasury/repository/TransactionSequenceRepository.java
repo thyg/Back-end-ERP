@@ -40,12 +40,11 @@ public interface TransactionSequenceRepository extends R2dbcRepository<Transacti
      * @return the next sequence number
      */
     @Modifying
-    @Query("""
-        INSERT INTO treasury.transaction_sequences (id, type_code, year_month, last_sequence)
-        VALUES (gen_random_uuid(), :typeCode, :yearMonth, 1)
-        ON CONFLICT (type_code, year_month)
-        DO UPDATE SET last_sequence = treasury.transaction_sequences.last_sequence + 1
-        RETURNING last_sequence
-        """)
-    Mono<Integer> getNextSequence(String typeCode, String yearMonth);
+@Query("INSERT INTO treasury.transaction_sequences (id, type_code, year_month, last_sequence) " +
+       "VALUES (gen_random_uuid(), :typeCode, :yearMonth, 1) " +
+       "ON CONFLICT (type_code, year_month) DO UPDATE SET last_sequence = treasury.transaction_sequences.last_sequence + 1")
+Mono<Long> incrementSequence(String typeCode, String yearMonth);
+
+@Query("SELECT last_sequence FROM treasury.transaction_sequences WHERE type_code = :typeCode AND year_month = :yearMonth")
+Mono<Integer> findLastSequence(String typeCode, String yearMonth);
 }

@@ -55,8 +55,8 @@ public class BankAccount implements Persistable<UUID> {
     @Column("name")
     private String name;
 
-    @Column("account_number")
-    private String accountNumber;
+  //  @Column("account_number")
+   // private String accountNumber;
 
     /**
      * Branch/agency code (5 digits) for IBAN generation.
@@ -70,11 +70,11 @@ public class BankAccount implements Persistable<UUID> {
     @Column("generated_iban")
     private String generatedIban;
 
-    @Column("iban")
-    private String iban;
+   // @Column("iban")
+   // private String iban;
 
-    @Column("bic")
-    private String bic;
+    //@Column("bic")
+    //private String bic;
 
     @Column("currency")
     private String currency;

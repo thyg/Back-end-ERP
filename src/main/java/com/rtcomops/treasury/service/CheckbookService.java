@@ -144,8 +144,8 @@ public class CheckbookService {
 
                     // Use IBAN from account if not provided
                     if (request.getIban() == null || request.getIban().isBlank()) {
-                        String iban = account.getIban() != null ? account.getIban() : account.getAccountNumber();
-                        request.setIban(iban);
+                      //  String iban = account.getIban() != null ? account.getIban() : account.getAccountNumber();
+                        //request.setIban(iban);
                     }
 
                     Checkbook entity = checkbookMapper.toEntity(request);

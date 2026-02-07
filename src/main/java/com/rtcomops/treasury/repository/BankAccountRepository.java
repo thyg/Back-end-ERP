@@ -9,13 +9,6 @@ import reactor.core.publisher.Mono;
 
 import java.util.UUID;
 
-/**
- * Reactive repository for BankAccount entity operations.
- *
- * @author RT-ComOps Team
- * @version 1.0.0
- * @since 2024-12-11
- */
 @Repository
 public interface BankAccountRepository extends R2dbcRepository<BankAccount, UUID> {
 
@@ -28,6 +21,8 @@ public interface BankAccountRepository extends R2dbcRepository<BankAccount, UUID
     @Query("SELECT * FROM treasury.bank_accounts WHERE bank_id = :bankId ORDER BY name ASC")
     Flux<BankAccount> findByBankId(UUID bankId);
 
+    // --- SUPPRIMEZ OU COMMENTEZ CES 4 MÉTHODES ---
+    /*
     Mono<Boolean> existsByAccountNumber(String accountNumber);
 
     @Query("SELECT COUNT(*) > 0 FROM treasury.bank_accounts WHERE account_number = :accountNumber AND id != :id")
@@ -37,4 +32,5 @@ public interface BankAccountRepository extends R2dbcRepository<BankAccount, UUID
 
     @Query("SELECT COUNT(*) > 0 FROM treasury.bank_accounts WHERE iban = :iban AND id != :id")
     Mono<Boolean> existsByIbanAndIdNot(String iban, UUID id);
+    */
 }

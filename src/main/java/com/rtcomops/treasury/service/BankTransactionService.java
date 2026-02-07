@@ -165,14 +165,19 @@ public class BankTransactionService {
      * @return the generated reference
      */
     private Mono<String> generateReference(String typeCode) {
-        String normalizedCode = typeCode.toUpperCase().replace("_", "-");
-        String yearMonth = LocalDate.now().format(YEAR_MONTH_FORMATTER);
+       String normalizedCode = typeCode.toUpperCase().replace("_", "-");
+    String yearMonth = LocalDate.now().format(YEAR_MONTH_FORMATTER);
 
-        return sequenceRepository.getNextSequence(normalizedCode, yearMonth)
-            .map(sequence -> {
-                String formattedSequence = String.format("%04d", sequence);
-                return normalizedCode + "-" + yearMonth + "-" + formattedSequence;
-            });
+    // On incrémente d'abord, PUIS on lit la valeur. C'est atomique et plus sûr.
+    return sequenceRepository.incrementSequence(normalizedCode, yearMonth)
+        .then(sequenceRepository.findLastSequence(normalizedCode, yearMonth))
+        .map(sequence -> {
+            String formattedSequence = String.format("%04d", sequence);
+            return normalizedCode + "-" + yearMonth + "-" + formattedSequence;
+        })
+        .switchIfEmpty(Mono.error(new BusinessException(
+            "Impossible de générer une référence. La séquence n'a pas été trouvée après incrémentation."
+        )));
     }
 
     /**

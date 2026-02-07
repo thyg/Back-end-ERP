@@ -315,20 +315,30 @@ public class CheckService {
             });
     }
 
-    public Mono<Void> delete(UUID id) {
+   public Mono<Void> delete(UUID id) {
         LOG.info("Deleting check id={}", id);
         
         return checkRepository.findById(id)
             .switchIfEmpty(Mono.error(new ResourceNotFoundException(RESOURCE_NAME, id)))
-            .flatMap(check -> auditLogService.log(
-                    AuditModule.CHECK,
-                    AuditAction.DELETE,
-                    check.getId(),
-                    check.getCheckNumber(),
-                    check,
-                    null,
-                    "Suppression du chèque n°" + check.getCheckNumber()
-            ).then(checkRepository.delete(check).then(Mono.fromRunnable(() -> LOG.info("Check deleted: id={}", id)))));
+            .flatMap(check -> {
+                // Étape 1: Valider le statut
+                if (!"PENDING".equals(check.getStatus())) {
+                    return Mono.error(new BusinessException("Seul un chèque au statut 'En attente' peut être supprimé."));
+                }
+
+                // Étape 2: Enchaîner les opérations de manière séquentielle
+                return auditLogService.log(
+                        AuditModule.CHECK,
+                        AuditAction.DELETE,
+                        check.getId(),
+                        check.getCheckNumber(),
+                        check,
+                        null,
+                        "Suppression du chèque n°" + check.getCheckNumber()
+                    )
+                    .then(checkRepository.delete(check)) // Étape 3: Après le log, supprimer le chèque
+                    .doOnSuccess(v -> LOG.info("Check deleted successfully: id={}", id)); // Étape 4: En cas de succès, logger l'information
+            });
     }
 
     public Mono<CheckResponse> deposit(UUID id, LocalDate depositDate) {
@@ -376,24 +386,16 @@ public class CheckService {
             .flatMap(existing -> {
                 // Validation des transitions de statut
                 if ("RECEIVED".equals(existing.getCheckType())) {
-                    // Chèque reçu: doit être DEPOSITED avant d'être encaissé
-                    if (!"DEPOSITED".equals(existing.getStatus())) {
-                        return Mono.error(new BusinessException(
-                            "Un chèque reçu doit être remis en banque avant d'être encaissé"));
-                    }
-                } else {
-                        // Chèque émis: peut être encaissé depuis PENDING, ISSUED, ou DEPOSITED
-                    // ISSUED est maintenant inclus pour refléter la réalité métier (le chèque a été remis au fournisseur puis débité)
-                    if (!"PENDING".equals(existing.getStatus()) && 
-                        !"ISSUED".equals(existing.getStatus()) && 
-                        !"DEPOSITED".equals(existing.getStatus()) &&
-                        !"IN_PROGRESS".equals(existing.getStatus())) {
-                        
-                        return Mono.error(new BusinessException(
-                            "Le chèque ne peut pas être encaissé dans son état actuel. " + 
-                            "Statut actuel : " + existing.getStatus()));
-                    }
-                }
+    if (!"DEPOSITED".equals(existing.getStatus()) && !"IN_PROGRESS".equals(existing.getStatus())) {
+        return Mono.error(new BusinessException(
+            "Un chèque reçu doit être 'Déposé' avant de pouvoir être encaissé."));
+    }
+} else { // Chèque ÉMIS
+    if (!"ISSUED".equals(existing.getStatus())) {
+        return Mono.error(new BusinessException(
+            "Un chèque émis doit être au statut 'Émis' pour être marqué comme payé."));
+    }
+}
 
                 Check original = existing.toBuilder().build();
 
@@ -512,14 +514,25 @@ public class CheckService {
      * Génère une référence unique pour la transaction de chèque.
      * Format: CHQ-YYYYMM-NNNN
      */
-    private Mono<String> generateCheckReference(Check check) {
-        String yearMonth = LocalDate.now().format(YEAR_MONTH_FORMATTER);
-        return sequenceRepository.getNextSequence(CHECK_TYPE_CODE, yearMonth)
+  private Mono<String> generateCheckReference(Check check) {
+            String yearMonth = LocalDate.now().format(YEAR_MONTH_FORMATTER);
+        
+        // --- CORRECTION ICI ---
+        // On utilise la constante de la classe, CHECK_TYPE_CODE, au lieu de la variable inexistante 'typeCode'.
+        String normalizedCode = CHECK_TYPE_CODE.toUpperCase().replace("_", "-");
+
+        // On incrémente d'abord, PUIS on lit la valeur.
+        return sequenceRepository.incrementSequence(normalizedCode, yearMonth)
+            .then(sequenceRepository.findLastSequence(normalizedCode, yearMonth))
             .map(sequence -> {
                 String formattedSequence = String.format("%04d", sequence);
-                return CHECK_TYPE_CODE + "-" + yearMonth + "-" + formattedSequence;
-            });
-    }
+                return normalizedCode + "-" + yearMonth + "-" + formattedSequence;
+            })
+            .switchIfEmpty(Mono.error(new BusinessException(
+                "Impossible de générer une référence. La séquence n'a pas été trouvée après incrémentation."
+            )));
+
+}
 
     /**
      * Met à jour le solde du compte bancaire de manière incrémentale.
@@ -567,21 +580,17 @@ public class CheckService {
                 if ("CANCELLED".equals(currentStatus)) {
                     return Mono.error(new BusinessException("Impossible de rejeter un chèque annulé"));
                 }
+                   
+                if (!"RECEIVED".equals(existing.getCheckType())) {
+    return Mono.error(new BusinessException("Seuls les chèques reçus peuvent être rejetés."));
+}
+if (!"DEPOSITED".equals(existing.getStatus()) && !"IN_PROGRESS".equals(existing.getStatus())) {
+    return Mono.error(new BusinessException(
+        "Un chèque doit être 'Déposé' ou 'En cours' pour pouvoir être rejeté."));
+}
 
-                // Pour les chèques reçus: on peut rejeter depuis PENDING ou DEPOSITED
-                // Pour les chèques émis: on peut rejeter depuis PENDING ou CASHED
-                if ("RECEIVED".equals(existing.getCheckType())) {
-                    if (!"PENDING".equals(currentStatus) && !"DEPOSITED".equals(currentStatus)) {
-                        return Mono.error(new BusinessException(
-                            "Un chèque reçu ne peut être rejeté que s'il est en attente ou remis en banque"));
-                    }
-                } else {
-                    if (!"PENDING".equals(currentStatus) && !"CASHED".equals(currentStatus)) {
-                        return Mono.error(new BusinessException(
-                            "Un chèque émis ne peut être rejeté que s'il est en attente ou encaissé"));
-                    }
-                }
 
+                
                 Check original = existing.toBuilder().build();
                 existing.setStatus("REJECTED");
                 existing.setRejectionReason(reason);
@@ -608,17 +617,10 @@ public class CheckService {
             .flatMap(existing -> {
                 // Validation des transitions de statut
                 String currentStatus = existing.getStatus();
-                if ("CANCELLED".equals(currentStatus)) {
-                    return Mono.error(new BusinessException("Le chèque est déjà annulé"));
-                }
-                if ("CASHED".equals(currentStatus)) {
-                    return Mono.error(new BusinessException(
-                        "Impossible d'annuler un chèque déjà encaissé"));
-                }
-                if ("REJECTED".equals(currentStatus)) {
-                    return Mono.error(new BusinessException(
-                        "Impossible d'annuler un chèque déjà rejeté"));
-                }
+               if ("CASHED".equals(currentStatus) || "REJECTED".equals(currentStatus) || "CANCELLED".equals(currentStatus)) {
+    return Mono.error(new BusinessException(
+        "Impossible d'annuler un chèque déjà finalisé (Encaissé, Rejeté ou Annulé)."));
+}
                 // Seuls les chèques PENDING ou DEPOSITED peuvent être annulés
                 if (!"PENDING".equals(currentStatus) && !"DEPOSITED".equals(currentStatus)) {
                     return Mono.error(new BusinessException(
