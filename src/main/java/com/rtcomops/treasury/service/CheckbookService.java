@@ -244,6 +244,22 @@ public Mono<String> peekNextCheckNumber(UUID id) {
     }
 
     /**
+     * Retrieves the system checkbook (type=FICTIF, isSystem=true).
+     * This checkbook is used to track received checks.
+     *
+     * @return Mono of CheckbookResponse
+     * @throws ResourceNotFoundException if system checkbook not found
+     */
+    @Transactional(readOnly = true)
+    public Mono<CheckbookResponse> findSystemCheckbook() {
+        LOG.debug("Finding system checkbook");
+        return checkbookRepository.findByIsSystemTrue()
+            .switchIfEmpty(Mono.error(new ResourceNotFoundException(
+                "Chéquier système non trouvé. Veuillez contacter l'administrateur.")))
+            .flatMap(this::enrichWithAccountName);
+    }
+
+    /**
      * Gets statistics for a specific checkbook.
      *
      * @param checkbookId the checkbook ID

@@ -47,6 +47,17 @@ public class CheckbookController {
         return checkbookService.findAll();
     }
 
+    @GetMapping("/system")
+    @Operation(summary = "Get the system checkbook (for received checks)")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "System checkbook found"),
+        @ApiResponse(responseCode = "404", description = "System checkbook not found")
+    })
+    public Mono<ResponseEntity<CheckbookResponse>> getSystemCheckbook() {
+        LOG.debug("REST request to get system checkbook");
+        return checkbookService.findSystemCheckbook().map(ResponseEntity::ok);
+    }
+
     @GetMapping("/{id}")
     @Operation(summary = "Get checkbook by ID")
     @ApiResponses({

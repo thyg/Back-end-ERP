@@ -3,6 +3,7 @@ package com.rtcomops.treasury.controller;
 import com.rtcomops.treasury.dto.request.CreateCheckRequest;
 import com.rtcomops.treasury.dto.request.UpdateCheckRequest;
 import com.rtcomops.treasury.dto.response.CheckResponse;
+import com.rtcomops.treasury.dto.response.CheckStatsResponse;
 import com.rtcomops.treasury.service.CheckService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -219,5 +220,39 @@ public class CheckController {
         LOG.debug("REST request to receive check id={}", id);
         LocalDate effectiveDate = receiveDate != null ? receiveDate : LocalDate.now();
         return checkService.receive(id, effectiveDate).map(ResponseEntity::ok);
+    }
+
+    @PostMapping("/{id}/processing")
+    @Operation(summary = "Mark a check as in progress")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Check marked as in progress"),
+        @ApiResponse(responseCode = "400", description = "Invalid state transition"),
+        @ApiResponse(responseCode = "404", description = "Check not found")
+    })
+    public Mono<ResponseEntity<CheckResponse>> markAsProcessing(@PathVariable UUID id) {
+        LOG.debug("REST request to mark check id={} as in progress", id);
+        return checkService.markAsProcessing(id).map(ResponseEntity::ok);
+    }
+
+    // =========================================================================
+    // STATISTIQUES
+    // =========================================================================
+
+    @GetMapping("/stats")
+    @Operation(summary = "Get aggregated check statistics",
+               description = "Returns KPIs including counts and amounts by status, overdue checks, and totals by type")
+    @ApiResponse(responseCode = "200", description = "Statistics retrieved successfully")
+    public Mono<ResponseEntity<CheckStatsResponse>> getStats() {
+        LOG.debug("REST request to get check statistics");
+        return checkService.getStats().map(ResponseEntity::ok);
+    }
+
+    @GetMapping("/overdue")
+    @Operation(summary = "Get overdue checks",
+               description = "Returns all received checks with due date in the past that are not yet cashed/rejected/cancelled")
+    @ApiResponse(responseCode = "200", description = "Overdue checks retrieved")
+    public Flux<CheckResponse> getOverdueChecks() {
+        LOG.debug("REST request to get overdue checks");
+        return checkService.findOverdueChecks();
     }
 }

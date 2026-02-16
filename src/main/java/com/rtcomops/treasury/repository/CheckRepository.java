@@ -64,10 +64,82 @@ public interface CheckRepository extends R2dbcRepository<Check, UUID> {
      * @return Mono containing the calculated statistics
      */
     @Query("SELECT " +
-           "  COUNT(*) AS usedChecksCount, " +
-           "  COALESCE(SUM(amount), 0) AS totalAmountIssued, " +
-           "  COALESCE(SUM(CASE WHEN status = 'CASHED' THEN amount ELSE 0 END), 0) AS totalAmountCashed " +
+           "  COUNT(*) AS used_checks_count, " +
+           "  COALESCE(SUM(CASE WHEN status IN ('ISSUED', 'RECEIVED', 'DEPOSITED', 'IN_PROGRESS') THEN amount ELSE 0 END), 0) AS total_amount_issued, " +
+           "  COALESCE(SUM(CASE WHEN status = 'CASHED' THEN amount ELSE 0 END), 0) AS total_amount_cashed " +
            "FROM treasury.checks " +
            "WHERE checkbook_id = :checkbookId")
     Mono<CheckbookStatsResponse> getStatsByCheckbookId(UUID checkbookId);
+
+    // =========================================================================
+    // STATISTIQUES GLOBALES DES CHÈQUES
+    // =========================================================================
+
+    /**
+     * Counts checks by status (excluding CANCELLED).
+     */
+    @Query("SELECT COUNT(*) FROM treasury.checks WHERE status = :status")
+    Mono<Integer> countByStatus(String status);
+
+    /**
+     * Sums amounts by status.
+     */
+    @Query("SELECT COALESCE(SUM(amount), 0) FROM treasury.checks WHERE status = :status")
+    Mono<java.math.BigDecimal> sumAmountByStatus(String status);
+
+    /**
+     * Counts checks by type (ISSUED or RECEIVED), excluding CANCELLED.
+     */
+    @Query("SELECT COUNT(*) FROM treasury.checks WHERE check_type = :checkType AND status != 'CANCELLED'")
+    Mono<Integer> countByCheckType(String checkType);
+
+    /**
+     * Sums amounts by type, excluding CANCELLED.
+     */
+    @Query("SELECT COALESCE(SUM(amount), 0) FROM treasury.checks WHERE check_type = :checkType AND status != 'CANCELLED'")
+    Mono<java.math.BigDecimal> sumAmountByCheckType(String checkType);
+
+    /**
+     * Counts total checks excluding CANCELLED.
+     */
+    @Query("SELECT COUNT(*) FROM treasury.checks WHERE status != 'CANCELLED'")
+    Mono<Integer> countAllExcludingCancelled();
+
+    /**
+     * Sums total amount excluding CANCELLED.
+     */
+    @Query("SELECT COALESCE(SUM(amount), 0) FROM treasury.checks WHERE status != 'CANCELLED'")
+    Mono<java.math.BigDecimal> sumTotalAmountExcludingCancelled();
+
+    /**
+     * Counts overdue checks: checks with due_date in the past and not yet cashed/rejected/cancelled.
+     * Only applies to RECEIVED checks that are PENDING, RECEIVED, DEPOSITED, or IN_PROGRESS.
+     */
+    @Query("SELECT COUNT(*) FROM treasury.checks " +
+           "WHERE check_type = 'RECEIVED' " +
+           "AND due_date IS NOT NULL " +
+           "AND due_date < CURRENT_DATE " +
+           "AND status IN ('PENDING', 'RECEIVED', 'DEPOSITED', 'IN_PROGRESS')")
+    Mono<Integer> countOverdueChecks();
+
+    /**
+     * Sums amount of overdue checks.
+     */
+    @Query("SELECT COALESCE(SUM(amount), 0) FROM treasury.checks " +
+           "WHERE check_type = 'RECEIVED' " +
+           "AND due_date IS NOT NULL " +
+           "AND due_date < CURRENT_DATE " +
+           "AND status IN ('PENDING', 'RECEIVED', 'DEPOSITED', 'IN_PROGRESS')")
+    Mono<java.math.BigDecimal> sumOverdueAmount();
+
+    /**
+     * Finds all overdue checks (for listing).
+     */
+    @Query("SELECT * FROM treasury.checks " +
+           "WHERE check_type = 'RECEIVED' " +
+           "AND due_date IS NOT NULL " +
+           "AND due_date < CURRENT_DATE " +
+           "AND status IN ('PENDING', 'RECEIVED', 'DEPOSITED', 'IN_PROGRESS') " +
+           "ORDER BY due_date ASC")
+    Flux<Check> findOverdueChecks();
 }

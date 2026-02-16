@@ -169,7 +169,14 @@ public class CheckService {
                         });
                 }
 
-                // If checkbookId is provided, get the next check number from the checkbook
+                // For RECEIVED checks, always use manual creation since the check number
+                // is provided by the third party. The checkbookId (if provided) will be used
+                // for association only, not for auto-generating the check number.
+                if ("RECEIVED".equalsIgnoreCase(request.getCheckType())) {
+                    return createCheckManual(request, account);
+                }
+
+                // For ISSUED checks: if checkbookId is provided, auto-generate the number
                 if (request.getCheckbookId() != null) {
                     return createCheckFromCheckbook(request, account);
                 } else {
@@ -186,8 +193,10 @@ public class CheckService {
         return checkbookRepository.findById(request.getCheckbookId())
             .switchIfEmpty(Mono.error(new ResourceNotFoundException("Checkbook", request.getCheckbookId())))
             .flatMap(checkbook -> {
-                // Validate checkbook belongs to the same account
-                if (!checkbook.getBankAccountId().equals(request.getBankAccountId())) {
+                // Validate checkbook belongs to the same account (only for real checkbooks)
+                // System/fictitious checkbooks (FICTIF type) can be used with any account
+                if (!checkbook.isFictif() && checkbook.getBankAccountId() != null
+                    && !checkbook.getBankAccountId().equals(request.getBankAccountId())) {
                     return Mono.error(new BusinessException(
                         "Le chéquier n'appartient pas au compte bancaire spécifié"));
                 }
@@ -225,6 +234,10 @@ public class CheckService {
 
     /**
      * Creates a check with manually provided check number.
+     * For RECEIVED checks without a checkbookId, automatically assigns the system (fictitious) checkbook.
+     *
+     * Note: The system checkbook is auto-created by CheckbookInitializer on application startup.
+     * If it doesn't exist, this method will still create the check but without checkbook assignment.
      */
     private Mono<CheckResponse> createCheckManual(CreateCheckRequest request, BankAccount account) {
         // Vérifier que le numéro de chèque est fourni
@@ -247,6 +260,53 @@ public class CheckService {
                 String amountInWords = NumberToWordsConverter.convert(
                     request.getAmount(), account.getCurrency());
                 entity.setAmountInWords(amountInWords);
+
+                // For RECEIVED checks, assign to the system checkbook for tracking purposes
+                if ("RECEIVED".equalsIgnoreCase(request.getCheckType())) {
+                    // If checkbookId is provided in the request (e.g., from frontend), use it directly
+                    if (request.getCheckbookId() != null) {
+                        return checkbookRepository.findById(request.getCheckbookId())
+                            .flatMap(checkbook -> {
+                                entity.setCheckbookId(checkbook.getId());
+                                LOG.debug("Assigned provided checkbook {} to received check {}",
+                                    checkbook.getId(), entity.getCheckNumber());
+                                return saveCheck(entity, account.getName(), account.getCurrency(), checkbook.getPrefix());
+                            })
+                            .switchIfEmpty(Mono.defer(() -> {
+                                LOG.warn("Provided checkbook {} not found, proceeding without assignment",
+                                    request.getCheckbookId());
+                                return saveCheck(entity, account.getName(), account.getCurrency(), null);
+                            }));
+                    }
+
+                    // Otherwise, auto-assign the system checkbook
+                    return checkbookRepository.findByIsSystemTrue()
+                        .flatMap(systemCheckbook -> {
+                            // Vérifier que le chéquier système est actif
+                            if (!"ACTIVE".equals(systemCheckbook.getStatus())) {
+                                LOG.warn("System checkbook {} is not active (status={}), proceeding without assignment",
+                                    systemCheckbook.getId(), systemCheckbook.getStatus());
+                                return saveCheck(entity, account.getName(), account.getCurrency(), null);
+                            }
+                            entity.setCheckbookId(systemCheckbook.getId());
+                            LOG.debug("Auto-assigned system checkbook {} to received check {}",
+                                systemCheckbook.getId(), entity.getCheckNumber());
+                            return saveCheck(entity, account.getName(), account.getCurrency(), systemCheckbook.getPrefix());
+                        })
+                        .switchIfEmpty(Mono.defer(() -> {
+                            // Le chéquier système n'existe pas - on continue sans erreur
+                            // mais on log un avertissement car il devrait avoir été créé par CheckbookInitializer
+                            LOG.warn("System checkbook not found. It should be created by CheckbookInitializer on startup. " +
+                                "Creating received check {} without checkbook assignment.", entity.getCheckNumber());
+                            return saveCheck(entity, account.getName(), account.getCurrency(), null);
+                        }))
+                        .onErrorResume(e -> {
+                            // En cas d'erreur lors de la recherche du chéquier système,
+                            // on continue la création du chèque sans l'assigner
+                            LOG.error("Error while fetching system checkbook, proceeding without assignment: {}", e.getMessage());
+                            return saveCheck(entity, account.getName(), account.getCurrency(), null);
+                        });
+                }
 
                 return saveCheck(entity, account.getName(), account.getCurrency(), null);
             });
@@ -315,9 +375,22 @@ public class CheckService {
             });
     }
 
-   public Mono<Void> delete(UUID id) {
+    /**
+     * Deletes a check (only PENDING checks can be deleted).
+     *
+     * IMPORTANT - Business Rule: Deleting a check does NOT decrement the checkbook's currentNumber.
+     * This is intentional for accounting integrity:
+     * - Once a check number is allocated from a checkbook, it is considered "consumed"
+     * - Even if the check is deleted before being emitted, the number should not be reused
+     * - This prevents potential gaps in audit trails and accounting records
+     * - In real-world scenarios, deleted checks would typically be voided/cancelled rather than reused
+     *
+     * @param id the check ID to delete
+     * @return Mono<Void>
+     */
+    public Mono<Void> delete(UUID id) {
         LOG.info("Deleting check id={}", id);
-        
+
         return checkRepository.findById(id)
             .switchIfEmpty(Mono.error(new ResourceNotFoundException(RESOURCE_NAME, id)))
             .flatMap(check -> {
@@ -325,6 +398,9 @@ public class CheckService {
                 if (!"PENDING".equals(check.getStatus())) {
                     return Mono.error(new BusinessException("Seul un chèque au statut 'En attente' peut être supprimé."));
                 }
+
+                // Note: We intentionally do NOT decrement the checkbook's currentNumber here.
+                // See method Javadoc for the business rationale.
 
                 // Étape 2: Enchaîner les opérations de manière séquentielle
                 return auditLogService.log(
@@ -721,6 +797,158 @@ if (!"DEPOSITED".equals(existing.getStatus()) && !"IN_PROGRESS".equals(existing.
                     .flatMap(this::enrichWithAccountName);
             });
     }
+
+    /**
+     * Marks a deposited check as "in progress" (being processed by the bank).
+     * Transition: DEPOSITED → IN_PROGRESS
+     * Only applicable to RECEIVED type checks.
+     *
+     * @param id the check ID
+     * @return Mono of the updated CheckResponse
+     */
+    public Mono<CheckResponse> markAsProcessing(UUID id) {
+        LOG.info("Marking check id={} as in progress", id);
+
+        return checkRepository.findById(id)
+            .switchIfEmpty(Mono.error(new ResourceNotFoundException(RESOURCE_NAME, id)))
+            .flatMap(existing -> {
+                // Validation: seuls les chèques RECEIVED peuvent passer en IN_PROGRESS
+                if (!"RECEIVED".equals(existing.getCheckType())) {
+                    return Mono.error(new BusinessException(
+                        "Seuls les chèques reçus peuvent être marqués comme en cours de traitement."));
+                }
+
+                // Validation: seuls les chèques DEPOSITED peuvent passer en IN_PROGRESS
+                if (!"DEPOSITED".equals(existing.getStatus())) {
+                    return Mono.error(new BusinessException(
+                        "Seul un chèque déposé peut être marqué comme en cours de traitement."));
+                }
+
+                Check original = existing.toBuilder().build();
+                existing.setStatus("IN_PROGRESS");
+                existing.setNew(false);
+
+                return checkRepository.save(existing)
+                    .flatMap(saved -> auditLogService.log(
+                            AuditModule.CHECK,
+                            AuditAction.UPDATE,
+                            saved.getId(),
+                            saved.getCheckNumber(),
+                            original,
+                            saved,
+                            "Le suivi du chèque n°" + saved.getCheckNumber() + " a commencé."
+                    ).thenReturn(saved))
+                    .flatMap(this::enrichWithAccountName);
+            });
+    }
+
+    // =========================================================================
+    // STATISTIQUES
+    // =========================================================================
+
+    /**
+     * Retrieves aggregated statistics for all checks.
+     * Provides KPIs for the checks dashboard.
+     *
+     * @return Mono of CheckStatsResponse containing all statistics
+     */
+    @Transactional(readOnly = true)
+    public Mono<com.rtcomops.treasury.dto.response.CheckStatsResponse> getStats() {
+        LOG.debug("Calculating check statistics");
+
+        return Mono.zip(
+            // Totaux
+            checkRepository.countAllExcludingCancelled().defaultIfEmpty(0),
+            checkRepository.sumTotalAmountExcludingCancelled().defaultIfEmpty(BigDecimal.ZERO),
+            // PENDING
+            checkRepository.countByStatus("PENDING").defaultIfEmpty(0),
+            checkRepository.sumAmountByStatus("PENDING").defaultIfEmpty(BigDecimal.ZERO),
+            // ISSUED (chèques émis en circulation)
+            checkRepository.countByStatus("ISSUED").defaultIfEmpty(0),
+            checkRepository.sumAmountByStatus("ISSUED").defaultIfEmpty(BigDecimal.ZERO),
+            // RECEIVED (chèques reçus en main)
+            checkRepository.countByStatus("RECEIVED").defaultIfEmpty(0),
+            checkRepository.sumAmountByStatus("RECEIVED").defaultIfEmpty(BigDecimal.ZERO)
+        ).zipWith(Mono.zip(
+            // DEPOSITED
+            checkRepository.countByStatus("DEPOSITED").defaultIfEmpty(0),
+            checkRepository.sumAmountByStatus("DEPOSITED").defaultIfEmpty(BigDecimal.ZERO),
+            // IN_PROGRESS
+            checkRepository.countByStatus("IN_PROGRESS").defaultIfEmpty(0),
+            checkRepository.sumAmountByStatus("IN_PROGRESS").defaultIfEmpty(BigDecimal.ZERO),
+            // CASHED
+            checkRepository.countByStatus("CASHED").defaultIfEmpty(0),
+            checkRepository.sumAmountByStatus("CASHED").defaultIfEmpty(BigDecimal.ZERO),
+            // REJECTED
+            checkRepository.countByStatus("REJECTED").defaultIfEmpty(0),
+            checkRepository.sumAmountByStatus("REJECTED").defaultIfEmpty(BigDecimal.ZERO)
+        )).zipWith(Mono.zip(
+            // Overdue checks
+            checkRepository.countOverdueChecks().defaultIfEmpty(0),
+            checkRepository.sumOverdueAmount().defaultIfEmpty(BigDecimal.ZERO),
+            // By type: ISSUED
+            checkRepository.countByCheckType("ISSUED").defaultIfEmpty(0),
+            checkRepository.sumAmountByCheckType("ISSUED").defaultIfEmpty(BigDecimal.ZERO),
+            // By type: RECEIVED
+            checkRepository.countByCheckType("RECEIVED").defaultIfEmpty(0),
+            checkRepository.sumAmountByCheckType("RECEIVED").defaultIfEmpty(BigDecimal.ZERO)
+        )).map(tuple -> {
+            var t1 = tuple.getT1().getT1(); // First group of 8
+            var t2 = tuple.getT1().getT2(); // Second group of 8
+            var t3 = tuple.getT2();          // Third group of 6
+
+            return com.rtcomops.treasury.dto.response.CheckStatsResponse.builder()
+                // Totaux
+                .totalChecks(t1.getT1())
+                .totalAmount(t1.getT2())
+                // PENDING
+                .pendingCount(t1.getT3())
+                .pendingAmount(t1.getT4())
+                // ISSUED
+                .issuedCount(t1.getT5())
+                .issuedAmount(t1.getT6())
+                // RECEIVED
+                .receivedCount(t1.getT7())
+                .receivedAmount(t1.getT8())
+                // DEPOSITED
+                .depositedCount(t2.getT1())
+                .depositedAmount(t2.getT2())
+                // IN_PROGRESS
+                .inProgressCount(t2.getT3())
+                .inProgressAmount(t2.getT4())
+                // CASHED
+                .cashedCount(t2.getT5())
+                .cashedAmount(t2.getT6())
+                // REJECTED
+                .rejectedCount(t2.getT7())
+                .rejectedAmount(t2.getT8())
+                // Overdue
+                .overdueCount(t3.getT1())
+                .overdueAmount(t3.getT2())
+                // By type
+                .totalIssuedTypeCount(t3.getT3())
+                .totalIssuedTypeAmount(t3.getT4())
+                .totalReceivedTypeCount(t3.getT5())
+                .totalReceivedTypeAmount(t3.getT6())
+                .build();
+        });
+    }
+
+    /**
+     * Finds all checks with overdue due dates.
+     *
+     * @return Flux of overdue checks
+     */
+    @Transactional(readOnly = true)
+    public Flux<CheckResponse> findOverdueChecks() {
+        LOG.debug("Finding overdue checks");
+        return checkRepository.findOverdueChecks()
+            .flatMap(this::enrichWithAccountName);
+    }
+
+    // =========================================================================
+    // HELPERS
+    // =========================================================================
 
     private Mono<CheckResponse> enrichWithAccountName(Check check) {
         Mono<BankAccount> accountMono = accountRepository.findById(check.getBankAccountId())
