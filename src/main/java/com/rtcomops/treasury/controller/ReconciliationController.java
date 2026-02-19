@@ -95,4 +95,30 @@ public class ReconciliationController {
         LOG.debug("REST request to get matches for line={}", lineId);
         return reconciliationService.findMatchesByLineId(lineId);
     }
+
+    @PostMapping("/check-deposit/{depositId}/line/{lineId}")
+    @Operation(
+        summary = "Reconcile a check deposit batch with a statement line",
+        description = """
+            Reconciles a batch check deposit (remise de cheques en lot) with a bank statement line.
+
+            This operation:
+            - Changes the deposit status to RECONCILED
+            - Creates a single bank transaction for the total deposit amount
+            - Updates all checks in the deposit to CASHED status
+            - Updates the bank account balance once with the total amount
+            - Creates a reconciliation match between the transaction and statement line
+            """)
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Check deposit reconciled successfully"),
+        @ApiResponse(responseCode = "400", description = "Deposit already reconciled"),
+        @ApiResponse(responseCode = "404", description = "Check deposit or statement line not found")
+    })
+    public Mono<ResponseEntity<Void>> reconcileCheckDeposit(
+            @PathVariable UUID depositId,
+            @PathVariable UUID lineId) {
+        LOG.debug("REST request to reconcile check deposit id={} with line id={}", depositId, lineId);
+        return reconciliationService.reconcileCheckDeposit(depositId, lineId)
+            .then(Mono.just(ResponseEntity.ok().<Void>build()));
+    }
 }

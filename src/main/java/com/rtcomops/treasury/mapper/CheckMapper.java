@@ -115,6 +115,7 @@ public class CheckMapper {
             .imageUrl(entity.getImageUrl())
             .issuerBank(entity.getIssuerBank())
             .bankTransactionId(entity.getBankTransactionId())
+            .checkDepositId(entity.getCheckDepositId())
             .createdAt(entity.getCreatedAt())
             .updatedAt(entity.getUpdatedAt())
             .build();

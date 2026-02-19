@@ -47,6 +47,7 @@ public class CheckResponse {
     private String imageUrl;
     private String issuerBank;
     private UUID bankTransactionId;
+    private UUID checkDepositId;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

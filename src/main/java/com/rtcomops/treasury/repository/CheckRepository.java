@@ -142,4 +142,18 @@ public interface CheckRepository extends R2dbcRepository<Check, UUID> {
            "AND status IN ('PENDING', 'RECEIVED', 'DEPOSITED', 'IN_PROGRESS') " +
            "ORDER BY due_date ASC")
     Flux<Check> findOverdueChecks();
+
+    // =========================================================================
+    // CHECK DEPOSITS (REMISES EN LOT)
+    // =========================================================================
+
+    /**
+     * Finds all checks belonging to a specific check deposit batch.
+     *
+     * @param checkDepositId the ID of the check deposit
+     * @return Flux of checks in that deposit batch
+     */
+    @Query("SELECT * FROM treasury.checks WHERE check_deposit_id = :checkDepositId ORDER BY check_number ASC")
+    Flux<Check> findByCheckDepositId(java.util.UUID checkDepositId);
+
 }

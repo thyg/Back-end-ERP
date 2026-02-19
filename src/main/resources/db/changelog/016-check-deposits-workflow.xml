@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    016 - Check Deposits Workflow Enhancement
+    Treasury Module - RT-ComOps ERP
+
+    This changelog enhances the check deposits workflow to support:
+    - PENDING status (initial state when deposit is created)
+    - DEPOSITED status (when deposit is confirmed at bank)
+    - CASHED status (when deposit funds are received)
+    - cashed_date field for tracking encashment date
+
+    Author: RT-ComOps Team
+    Date: 2026-02-18
+-->
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.24.xsd">
+
+    <!-- ====================================================================== -->
+    <!-- CHANGESET 016-1: Add cashed_date column to check_deposits              -->
+    <!-- ====================================================================== -->
+    <changeSet id="016-1-add-cashed-date-column" author="rtcomops">
+        <comment>Add cashed_date column to track when deposit funds were received</comment>
+
+        <addColumn tableName="check_deposits" schemaName="treasury">
+            <column name="cashed_date" type="DATE">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+
+        <sql>
+            COMMENT ON COLUMN treasury.check_deposits.cashed_date IS 'Date when the deposit was cashed/funds received in account';
+        </sql>
+    </changeSet>
+
+    <!-- ====================================================================== -->
+    <!-- CHANGESET 016-2: Update status constraint to include PENDING and CASHED -->
+    <!-- ====================================================================== -->
+    <changeSet id="016-2-update-status-constraint" author="rtcomops">
+        <comment>Update status constraint to support full workflow: PENDING -> DEPOSITED -> CASHED (+ RECONCILED)</comment>
+
+        <!-- Drop the old constraint -->
+        <sql>
+            ALTER TABLE treasury.check_deposits DROP CONSTRAINT IF EXISTS chk_check_deposits_status;
+        </sql>
+
+        <!-- Add the new constraint with all statuses -->
+        <sql>
+            ALTER TABLE treasury.check_deposits
+            ADD CONSTRAINT chk_check_deposits_status
+            CHECK (status IN ('PENDING', 'DEPOSITED', 'CASHED', 'RECONCILED'));
+        </sql>
+
+        <!-- Update table documentation -->
+        <sql>
+            COMMENT ON COLUMN treasury.check_deposits.status IS
+                'Workflow status: PENDING = created, awaiting bank deposit; DEPOSITED = deposited at bank; CASHED = funds received; RECONCILED = matched with bank statement';
+        </sql>
+    </changeSet>
+
+    <!-- ====================================================================== -->
+    <!-- CHANGESET 016-3: Change default status to PENDING                      -->
+    <!-- ====================================================================== -->
+    <changeSet id="016-3-change-default-status" author="rtcomops">
+        <comment>Change default status from DEPOSITED to PENDING</comment>
+
+        <addDefaultValue
+            schemaName="treasury"
+            tableName="check_deposits"
+            columnName="status"
+            defaultValue="PENDING"/>
+    </changeSet>
+
+    <!-- ====================================================================== -->
+    <!-- CHANGESET 016-4: Migrate existing DEPOSITED records (optional)         -->
+    <!-- ====================================================================== -->
+    <changeSet id="016-4-migrate-existing-records" author="rtcomops">
+        <comment>
+            Existing records with DEPOSITED status remain DEPOSITED (they were created
+            with the old workflow and are already confirmed at bank).
+            This changeset is informational - no data migration needed.
+        </comment>
+
+        <!-- No action needed - existing DEPOSITED records are valid -->
+        <sql>
+            -- Informational: existing DEPOSITED records are preserved
+            -- They represent deposits already confirmed at the bank
+            SELECT 1;
+        </sql>
+    </changeSet>
+
+</databaseChangeLog>

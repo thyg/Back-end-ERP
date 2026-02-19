@@ -1,0 +1,181 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    015 - Check Deposits (Remises de Chèques en Lot)
+    Treasury Module - RT-ComOps ERP
+
+    This changelog creates tables for:
+    - Check Deposits (remises groupées de chèques)
+
+    Author: RT-ComOps Team
+    Date: 2026-02-16
+-->
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.24.xsd">
+
+    <!-- ====================================================================== -->
+    <!-- CHANGESET 015-1: Create check_deposits table                           -->
+    <!-- ====================================================================== -->
+    <changeSet id="015-1-create-check-deposits-table" author="rtcomops">
+        <comment>Create check_deposits table for batch check deposit management (remises en lot)</comment>
+
+        <createTable tableName="check_deposits" schemaName="treasury">
+            <column name="id" type="UUID">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="reference" type="VARCHAR(50)">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="deposit_date" type="DATE">
+                <constraints nullable="false"/>
+            </column>
+            <column name="bank_account_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="total_amount" type="DECIMAL(15,2)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="check_count" type="INTEGER">
+                <constraints nullable="false"/>
+            </column>
+            <column name="status" type="VARCHAR(20)" defaultValue="DEPOSITED">
+                <constraints nullable="false"/>
+            </column>
+            <column name="bank_transaction_id" type="UUID">
+                <constraints nullable="true"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP WITH TIME ZONE" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP WITH TIME ZONE" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <!-- Foreign key to bank_accounts table -->
+        <addForeignKeyConstraint
+            baseTableSchemaName="treasury"
+            baseTableName="check_deposits"
+            baseColumnNames="bank_account_id"
+            referencedTableSchemaName="treasury"
+            referencedTableName="bank_accounts"
+            referencedColumnNames="id"
+            constraintName="fk_check_deposits_bank_account_id"
+            onDelete="RESTRICT"/>
+
+        <!-- Foreign key to bank_transactions table -->
+        <addForeignKeyConstraint
+            baseTableSchemaName="treasury"
+            baseTableName="check_deposits"
+            baseColumnNames="bank_transaction_id"
+            referencedTableSchemaName="treasury"
+            referencedTableName="bank_transactions"
+            referencedColumnNames="id"
+            constraintName="fk_check_deposits_bank_transaction_id"
+            onDelete="SET NULL"/>
+
+        <!-- Indexes -->
+        <createIndex indexName="idx_check_deposits_reference" tableName="check_deposits" schemaName="treasury">
+            <column name="reference"/>
+        </createIndex>
+        <createIndex indexName="idx_check_deposits_bank_account_id" tableName="check_deposits" schemaName="treasury">
+            <column name="bank_account_id"/>
+        </createIndex>
+        <createIndex indexName="idx_check_deposits_deposit_date" tableName="check_deposits" schemaName="treasury">
+            <column name="deposit_date"/>
+        </createIndex>
+        <createIndex indexName="idx_check_deposits_status" tableName="check_deposits" schemaName="treasury">
+            <column name="status"/>
+        </createIndex>
+
+        <!-- Status constraint -->
+        <sql>
+            ALTER TABLE treasury.check_deposits
+            ADD CONSTRAINT chk_check_deposits_status
+            CHECK (status IN ('DEPOSITED', 'RECONCILED'));
+        </sql>
+
+        <!-- Amount must be positive -->
+        <sql>
+            ALTER TABLE treasury.check_deposits
+            ADD CONSTRAINT chk_check_deposits_amount_positive
+            CHECK (total_amount > 0);
+        </sql>
+
+        <!-- Check count must be positive -->
+        <sql>
+            ALTER TABLE treasury.check_deposits
+            ADD CONSTRAINT chk_check_deposits_count_positive
+            CHECK (check_count > 0);
+        </sql>
+    </changeSet>
+
+    <!-- ====================================================================== -->
+    <!-- CHANGESET 015-2: Add check_deposit_id column to checks table           -->
+    <!-- ====================================================================== -->
+    <changeSet id="015-2-add-check-deposit-id-to-checks" author="rtcomops">
+        <comment>Add check_deposit_id foreign key column to checks table</comment>
+
+        <addColumn tableName="checks" schemaName="treasury">
+            <column name="check_deposit_id" type="UUID">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+
+        <!-- Foreign key to check_deposits table -->
+        <addForeignKeyConstraint
+            baseTableSchemaName="treasury"
+            baseTableName="checks"
+            baseColumnNames="check_deposit_id"
+            referencedTableSchemaName="treasury"
+            referencedTableName="check_deposits"
+            referencedColumnNames="id"
+            constraintName="fk_checks_check_deposit_id"
+            onDelete="SET NULL"/>
+
+        <!-- Index for the foreign key -->
+        <createIndex indexName="idx_checks_check_deposit_id" tableName="checks" schemaName="treasury">
+            <column name="check_deposit_id"/>
+        </createIndex>
+    </changeSet>
+
+    <!-- ====================================================================== -->
+    <!-- CHANGESET 015-3: Add table comments                                    -->
+    <!-- ====================================================================== -->
+    <changeSet id="015-3-add-check-deposits-comments" author="rtcomops">
+        <comment>Add documentation comments to check_deposits table</comment>
+
+        <sql>
+            COMMENT ON TABLE treasury.check_deposits IS 'Batch check deposits (remises de cheques en lot)';
+            COMMENT ON COLUMN treasury.check_deposits.reference IS 'Unique reference for the deposit batch (e.g., REM-202602-0001)';
+            COMMENT ON COLUMN treasury.check_deposits.deposit_date IS 'Date when the checks were deposited at the bank';
+            COMMENT ON COLUMN treasury.check_deposits.bank_account_id IS 'Bank account receiving the deposit';
+            COMMENT ON COLUMN treasury.check_deposits.total_amount IS 'Sum of all check amounts in the batch';
+            COMMENT ON COLUMN treasury.check_deposits.check_count IS 'Number of checks in the batch';
+            COMMENT ON COLUMN treasury.check_deposits.status IS 'DEPOSITED = awaiting reconciliation, RECONCILED = matched with bank statement';
+            COMMENT ON COLUMN treasury.check_deposits.bank_transaction_id IS 'Link to the unique bank transaction created upon reconciliation';
+
+            COMMENT ON COLUMN treasury.checks.check_deposit_id IS 'Reference to the batch deposit this check belongs to (NULL for individual deposits)';
+        </sql>
+    </changeSet>
+
+    <!-- ====================================================================== -->
+    <!-- CHANGESET 015-4: Update audit_logs module constraint                   -->
+    <!-- ====================================================================== -->
+    <changeSet id="015-4-update-audit-logs-module-constraint" author="rtcomops">
+        <comment>Add CHECK_DEPOSIT to audit_logs module constraint</comment>
+
+        <sql>
+            ALTER TABLE treasury.audit_logs DROP CONSTRAINT IF EXISTS chk_audit_logs_module;
+            ALTER TABLE treasury.audit_logs
+            ADD CONSTRAINT chk_audit_logs_module
+            CHECK (module IN (
+                'BANK', 'BANK_ACCOUNT', 'TRANSACTION_TYPE', 'BANK_TRANSACTION',
+                'CHECK', 'CHECK_DEPOSIT', 'CHECKBOOK', 'BANK_STATEMENT', 'STATEMENT_LINE', 'RECONCILIATION'
+            ));
+        </sql>
+    </changeSet>
+
+</databaseChangeLog>

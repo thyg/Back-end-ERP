@@ -25,6 +25,9 @@ public enum AuditModule {
     /** Gestion des chèques */
     CHECK("Chèques"),
 
+    /** Remises de chèques en lot */
+    CHECK_DEPOSIT("Remises de chèques"),
+
     /** Gestion des chéquiers */
     CHECKBOOK("Chéquiers"),
 

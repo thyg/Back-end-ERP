@@ -55,6 +55,9 @@ public enum AuditAction {
     CLOSE("Clôture", "success"),
     
     // === Actions Rapprochement ===
+    /** Rapprochement d'une remise de chèques */
+    RECONCILE("Rapprochement remise", "success"),
+
     /** Rapprochement manuel */
     MANUAL_MATCH("Rapprochement manuel", "success"),
     

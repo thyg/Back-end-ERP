@@ -46,4 +46,10 @@
     <!-- Increment 14: Fix account_number column -->
     <include file="db/changelog/014-fix-account-number-column.xml"/>
 
+    <!-- Increment 15: Check Deposits (Remises de Chèques en Lot) -->
+    <include file="db/changelog/015-check-deposits.xml"/>
+
+    <!-- Increment 16: Check Deposits Workflow Enhancement (PENDING/DEPOSITED/CASHED) -->
+    <include file="db/changelog/016-check-deposits-workflow.xml"/>
+
 </databaseChangeLog>

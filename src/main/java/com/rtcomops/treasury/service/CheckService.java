@@ -462,47 +462,90 @@ public class CheckService {
             .flatMap(existing -> {
                 // Validation des transitions de statut
                 if ("RECEIVED".equals(existing.getCheckType())) {
-    if (!"DEPOSITED".equals(existing.getStatus()) && !"IN_PROGRESS".equals(existing.getStatus())) {
-        return Mono.error(new BusinessException(
-            "Un chèque reçu doit être 'Déposé' avant de pouvoir être encaissé."));
-    }
-} else { // Chèque ÉMIS
-    if (!"ISSUED".equals(existing.getStatus())) {
-        return Mono.error(new BusinessException(
-            "Un chèque émis doit être au statut 'Émis' pour être marqué comme payé."));
-    }
-}
-
-                Check original = existing.toBuilder().build();
-
-                // Créer la transaction bancaire et mettre à jour le solde
-                return createTransactionForCheck(existing, cashedDate)
-                    .flatMap(transaction -> {
-                        existing.setStatus("CASHED");
-                        existing.setCashedDate(cashedDate);
-                        existing.setBankTransactionId(transaction.getId());
-                        existing.setNew(false);
-
-                        return checkRepository.save(existing)
-                            .flatMap(saved ->
-                                // Mettre à jour le solde du compte
-                                updateAccountBalance(saved.getBankAccountId(),
-                                        transaction.getAmount(), transaction.getDirection())
-                                    .then(auditLogService.log(
-                                        AuditModule.CHECK,
-                                        AuditAction.CASH,
-                                        saved.getId(),
-                                        saved.getCheckNumber(),
-                                        original,
-                                        saved,
-                                        "Encaissement du chèque n°" + saved.getCheckNumber() +
-                                        " - Transaction " + transaction.getReference() + " créée"
-                                    ))
-                                    .thenReturn(saved)
-                            );
-                    })
-                    .flatMap(this::enrichWithAccountName);
+                    // Les cheques recus doivent etre encaisses via le processus de Remise de Cheques
+                    // L'encaissement individuel n'est plus autorise - il doit passer par CheckDepositService.cashDeposit()
+                    return Mono.error(new BusinessException(
+                        "L'encaissement d'un cheque recu doit se faire via le processus de Remise de Cheques. " +
+                        "Veuillez creer une remise, confirmer le depot, puis marquer la remise comme encaissee."));
+                } else {
+                    // Cheque EMIS
+                    if (!"ISSUED".equals(existing.getStatus())) {
+                        return Mono.error(new BusinessException(
+                            "Un cheque emis doit etre au statut 'Emis' pour etre marque comme paye."));
+                    }
+                    return cashIssuedCheck(existing, cashedDate);
+                }
             });
+    }
+
+    /**
+     * Encaisse un chèque RECEIVED (reçu).
+     * Pour les chèques reçus, on ne crée plus de BankTransaction individuelle.
+     * L'impact sur le solde du compte sera géré lors du rapprochement de la remise en lot.
+     *
+     * @param existing le chèque à encaisser
+     * @param cashedDate la date d'encaissement
+     * @return Mono de CheckResponse
+     */
+    private Mono<CheckResponse> cashReceivedCheck(Check existing, LocalDate cashedDate) {
+        Check original = existing.toBuilder().build();
+
+        existing.setStatus("CASHED");
+        existing.setCashedDate(cashedDate);
+        existing.setNew(false);
+
+        return checkRepository.save(existing)
+            .flatMap(saved -> auditLogService.log(
+                    AuditModule.CHECK,
+                    AuditAction.CASH,
+                    saved.getId(),
+                    saved.getCheckNumber(),
+                    original,
+                    saved,
+                    "Encaissement du chèque reçu n°" + saved.getCheckNumber() +
+                    " (sans création de transaction - géré via remise en lot)"
+            ).thenReturn(saved))
+            .flatMap(this::enrichWithAccountName);
+    }
+
+    /**
+     * Encaisse un chèque ISSUED (émis).
+     * Pour les chèques émis, on crée toujours une BankTransaction et on met à jour le solde.
+     *
+     * @param existing le chèque à encaisser
+     * @param cashedDate la date d'encaissement
+     * @return Mono de CheckResponse
+     */
+    private Mono<CheckResponse> cashIssuedCheck(Check existing, LocalDate cashedDate) {
+        Check original = existing.toBuilder().build();
+
+        // Créer la transaction bancaire et mettre à jour le solde
+        return createTransactionForCheck(existing, cashedDate)
+            .flatMap(transaction -> {
+                existing.setStatus("CASHED");
+                existing.setCashedDate(cashedDate);
+                existing.setBankTransactionId(transaction.getId());
+                existing.setNew(false);
+
+                return checkRepository.save(existing)
+                    .flatMap(saved ->
+                        // Mettre à jour le solde du compte
+                        updateAccountBalance(saved.getBankAccountId(),
+                                transaction.getAmount(), transaction.getDirection())
+                            .then(auditLogService.log(
+                                AuditModule.CHECK,
+                                AuditAction.CASH,
+                                saved.getId(),
+                                saved.getCheckNumber(),
+                                original,
+                                saved,
+                                "Encaissement du chèque émis n°" + saved.getCheckNumber() +
+                                " - Transaction " + transaction.getReference() + " créée"
+                            ))
+                            .thenReturn(saved)
+                    );
+            })
+            .flatMap(this::enrichWithAccountName);
     }
 
     /**

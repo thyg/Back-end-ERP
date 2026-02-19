@@ -98,6 +98,12 @@ public class Check implements Persistable<UUID> {
     private String issuerBank;
 
     /**
+     * Reference to the batch deposit this check belongs to (NULL for individual deposits).
+     */
+    @Column("check_deposit_id")
+    private UUID checkDepositId;
+
+    /**
      * Amount written in words (e.g., "Cinq cent mille francs CFA").
      */
     @Column("amount_in_words")
