@@ -52,11 +52,11 @@
         </dependency>
         
         <!-- PostgreSQL JDBC Driver (for Liquibase only) -->
-        <!-- Version 42.6.0 required for Neon compatibility (SCRAM iteration bug in 42.7.x) -->
+        <!-- Version 42.2.27 required for Neon pooler compatibility (SCRAM iteration bug in 42.3+) -->
         <dependency>
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>
-            <version>42.6.0</version>
+            <version>42.2.27</version>
             <scope>runtime</scope>
         </dependency>
         
