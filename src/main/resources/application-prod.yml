@@ -25,7 +25,7 @@ spring:
   # JDBC DataSource - Connexion classique (pour Liquibase uniquement)
   # -------------------------------------------------------------------------
   datasource:
-    url: jdbc:postgresql://${DB_HOST}:${DB_PORT:5432}/${DB_NAME}?sslmode=require&connectTimeout=30&socketTimeout=60
+    url: jdbc:postgresql://${DB_HOST}:${DB_PORT:5432}/${DB_NAME}?sslmode=require&connectTimeout=30&socketTimeout=60&password_encryption=md5
     username: ${DB_USER}
     password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
