@@ -1,16 +1,55 @@
-# Configurations spécifiques à la PRODUCTION
-spring:
-  r2dbc:
-    url: r2dbc:postgresql://${DB_HOST:ep-shy-wind-agssb5wj-pooler.c-2.eu-central-1.aws.neon.tech}:${DB_PORT:5432}/${DB_NAME:neondb}?sslMode=require
-    username: ${DB_USER:neondb_owner}
-    password: ${DB_PASSWORD:npg_QBbt1rDgGaO9}
-    pool:
-      initial-size: 5
-      max-size: 20
-      max-idle-time: 30m
+# =============================================================================
+# CONFIGURATION DE PRODUCTION - Render + Neon PostgreSQL
+# =============================================================================
+# IMPORTANT: Toutes les valeurs sensibles DOIVENT être définies via des
+# variables d'environnement sur Render. Ne jamais commiter de credentials !
+# =============================================================================
 
-  datasource: # Pour Liquibase
-    url: jdbc:postgresql://${DB_HOST:ep-shy-wind-agssb5wj-pooler.c-2.eu-central-1.aws.neon.tech}:${DB_PORT:5432}/${DB_NAME:neondb}?sslmode=require
-    username: ${DB_USER:neondb_owner}
-    password: ${DB_PASSWORD:npg_QBbt1rDgGaO9}
+spring:
+  # -------------------------------------------------------------------------
+  # R2DBC - Connexion réactive à PostgreSQL (pour l'application)
+  # -------------------------------------------------------------------------
+  r2dbc:
+    url: r2dbc:postgresql://${DB_HOST}:${DB_PORT:5432}/${DB_NAME}?sslMode=require&connectTimeout=PT30S
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+    pool:
+      enabled: true
+      initial-size: 2
+      max-size: 10
+      max-idle-time: 30m
+      max-create-connection-time: 30s
+      validation-query: SELECT 1
+
+  # -------------------------------------------------------------------------
+  # JDBC DataSource - Connexion classique (pour Liquibase uniquement)
+  # -------------------------------------------------------------------------
+  datasource:
+    url: jdbc:postgresql://${DB_HOST}:${DB_PORT:5432}/${DB_NAME}?sslmode=require&connectTimeout=30&socketTimeout=60
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
+    hikari:
+      connection-timeout: 30000
+      maximum-pool-size: 5
+      minimum-idle: 1
+
+# -----------------------------------------------------------------------------
+# Swagger/OpenAPI - Activé en production
+# -----------------------------------------------------------------------------
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+
+# -----------------------------------------------------------------------------
+# Logging optimisé pour la production
+# -----------------------------------------------------------------------------
+logging:
+  level:
+    root: INFO
+    com.rtcomops.treasury: INFO
+    org.springframework.r2dbc: WARN
+    io.r2dbc.postgresql: WARN
+    liquibase: INFO
