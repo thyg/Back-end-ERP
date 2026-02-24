@@ -47,13 +47,12 @@ springdoc:
     enabled: true
 
 # -----------------------------------------------------------------------------
-# Logging - DEBUG temporaire pour diagnostic
+# Logging optimisé pour la production
 # -----------------------------------------------------------------------------
 logging:
   level:
     root: INFO
-    com.rtcomops.treasury: DEBUG
-    org.springframework.r2dbc: DEBUG
-    io.r2dbc.postgresql: DEBUG
-    liquibase: DEBUG
-    org.springframework.boot: DEBUG
+    com.rtcomops.treasury: INFO
+    org.springframework.r2dbc: WARN
+    io.r2dbc.postgresql: WARN
+    liquibase: INFO
