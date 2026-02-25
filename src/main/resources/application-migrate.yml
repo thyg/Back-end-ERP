@@ -1,0 +1,33 @@
+# =============================================================================
+# PROFIL POUR MIGRATIONS MANUELLES VERS NEON
+# =============================================================================
+# Usage: mvn spring-boot:run -Dspring-boot.run.profiles=migrate
+# Ou:    ./mvnw liquibase:update -Dliquibase.url=... (voir ci-dessous)
+# =============================================================================
+
+spring:
+  # Désactiver le serveur web (on veut juste exécuter Liquibase)
+  main:
+    web-application-type: none
+
+  # Activer Liquibase
+  liquibase:
+    enabled: true
+    change-log: classpath:db/changelog/db.changelog-master.xml
+
+  # Connexion JDBC vers Neon (endpoint DIRECT sans pooler)
+  datasource:
+    url: jdbc:postgresql://${NEON_HOST}:5432/${NEON_DB}?sslmode=require
+    username: ${NEON_USER}
+    password: ${NEON_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+
+  # Désactiver R2DBC pour ce profil
+  r2dbc:
+    url: r2dbc:postgresql://localhost:5432/dummy
+    username: dummy
+    password: dummy
+
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.r2dbc.R2dbcAutoConfiguration

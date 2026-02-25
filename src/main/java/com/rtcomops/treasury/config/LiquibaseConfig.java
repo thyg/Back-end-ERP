@@ -2,6 +2,7 @@ package com.rtcomops.treasury.config;
 
 import liquibase.integration.spring.SpringLiquibase;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
@@ -10,7 +11,7 @@ import javax.sql.DataSource;
 
 /**
  * Configuration for Liquibase database migrations.
- * 
+ *
  * <p>This configuration creates a JDBC DataSource specifically for Liquibase,
  * since the application uses R2DBC for reactive database access.</p>
  *
@@ -19,6 +20,7 @@ import javax.sql.DataSource;
  * @since 2024-12-11
  */
 @Configuration
+@ConditionalOnProperty(name = "spring.liquibase.enabled", havingValue = "true", matchIfMissing = true)
 public class LiquibaseConfig {
 
     @Value("${spring.datasource.url}")
