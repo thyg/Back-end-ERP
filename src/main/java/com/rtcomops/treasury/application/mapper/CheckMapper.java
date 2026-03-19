@@ -1,0 +1,166 @@
+package com.rtcomops.treasury.application.mapper;
+
+import com.rtcomops.treasury.application.dto.request.CreateCheckRequest;
+import com.rtcomops.treasury.application.dto.request.UpdateCheckRequest;
+import com.rtcomops.treasury.application.dto.response.CheckResponse;
+import com.rtcomops.treasury.domain.model.Check;
+import org.springframework.stereotype.Component;
+
+import java.time.LocalDateTime;
+import java.util.UUID;
+
+/**
+ * Mapper for converting between Check domain model and DTOs.
+ *
+ * @author RT-ComOps Team
+ * @version 1.0.0
+ * @since 2024-12-11
+ */
+@Component
+public class CheckMapper {
+
+    private static final String DEFAULT_STATUS = "PENDING";
+
+    /**
+     * Converts a CreateCheckRequest to a Check domain model.
+     * Note: checkNumber and amountInWords may be set later by the service
+     * if checkbookId is provided.
+     *
+     * @param request the create request DTO
+     * @return a new Check domain model
+     */
+    public Check toEntity(CreateCheckRequest request) {
+        LocalDateTime now = LocalDateTime.now();
+
+        return Check.builder()
+            .id(UUID.randomUUID())
+            .bankAccountId(request.getBankAccountId())
+            .checkbookId(request.getCheckbookId())
+            .checkType(request.getCheckType().toUpperCase())
+            .checkNumber(request.getCheckNumber())
+            .amount(request.getAmount())
+            .partnerName(request.getPartnerName())
+            .issueDate(request.getIssueDate())
+            .dueDate(request.getDueDate())
+            .status(DEFAULT_STATUS)
+            .description(request.getDescription())
+            .issuerBank(request.getIssuerBank())
+            .receiptDate(request.getReceiptDate())
+            .createdAt(now)
+            .updatedAt(now)
+            .build();
+    }
+
+    /**
+     * Updates an existing Check domain model with values from UpdateCheckRequest.
+     *
+     * @param existing the existing check
+     * @param request the update request
+     * @return the updated check
+     */
+    public Check updateEntity(Check existing, UpdateCheckRequest request) {
+        if (request.getCheckNumber() != null) {
+            existing.setCheckNumber(request.getCheckNumber());
+        }
+        if (request.getAmount() != null) {
+            existing.setAmount(request.getAmount());
+        }
+        if (request.getPartnerName() != null) {
+            existing.setPartnerName(request.getPartnerName());
+        }
+        if (request.getIssueDate() != null) {
+            existing.setIssueDate(request.getIssueDate());
+        }
+        if (request.getDueDate() != null) {
+            existing.setDueDate(request.getDueDate());
+        }
+        if (request.getDepositDate() != null) {
+            existing.setDepositDate(request.getDepositDate());
+        }
+        if (request.getCashedDate() != null) {
+            existing.setCashedDate(request.getCashedDate());
+        }
+        if (request.getStatus() != null) {
+            existing.setStatus(request.getStatus().toUpperCase());
+        }
+        if (request.getDescription() != null) {
+            existing.setDescription(request.getDescription());
+        }
+        if (request.getRejectionReason() != null) {
+            existing.setRejectionReason(request.getRejectionReason());
+        }
+        if (request.getIssuerBank() != null) {
+            existing.setIssuerBank(request.getIssuerBank());
+        }
+        existing.setUpdatedAt(LocalDateTime.now());
+
+        return existing;
+    }
+
+    /**
+     * Converts a Check domain model to a CheckResponse DTO.
+     *
+     * @param entity the check domain model
+     * @return the response DTO
+     */
+    public CheckResponse toResponse(Check entity) {
+        return CheckResponse.builder()
+            .id(entity.getId())
+            .bankAccountId(entity.getBankAccountId())
+            .checkbookId(entity.getCheckbookId())
+            .checkType(entity.getCheckType())
+            .checkNumber(entity.getCheckNumber())
+            .amount(entity.getAmount())
+            .amountInWords(entity.getAmountInWords())
+            .partnerName(entity.getPartnerName())
+            .issueDate(entity.getIssueDate())
+            .dueDate(entity.getDueDate())
+            .depositDate(entity.getDepositDate())
+            .cashedDate(entity.getCashedDate())
+            .receiptDate(entity.getReceiptDate())
+            .emitDate(entity.getEmitDate())
+            .status(entity.getStatus())
+            .description(entity.getDescription())
+            .rejectionReason(entity.getRejectionReason())
+            .referenceCode(entity.getReferenceCode())
+            .imageUrl(entity.getImageUrl())
+            .issuerBank(entity.getIssuerBank())
+            .bankTransactionId(entity.getBankTransactionId())
+            .checkDepositId(entity.getCheckDepositId())
+            .createdAt(entity.getCreatedAt())
+            .updatedAt(entity.getUpdatedAt())
+            .build();
+    }
+
+    /**
+     * Converts a Check domain model to a CheckResponse DTO with account name and currency.
+     *
+     * @param entity the check domain model
+     * @param accountName the bank account name
+     * @param currency the bank account currency
+     * @return the response DTO with account details
+     */
+    public CheckResponse toResponseWithAccountName(Check entity, String accountName, String currency) {
+        CheckResponse response = toResponse(entity);
+        response.setBankAccountName(accountName);
+        response.setCurrency(currency);
+        return response;
+    }
+
+    /**
+     * Converts a Check domain model to a CheckResponse DTO with account name, currency and checkbook prefix.
+     *
+     * @param entity the check domain model
+     * @param accountName the bank account name
+     * @param currency the bank account currency
+     * @param checkbookPrefix the checkbook prefix (if any)
+     * @return the response DTO with details
+     */
+    public CheckResponse toResponseWithDetails(Check entity, String accountName, String currency, String checkbookPrefix) {
+        CheckResponse response = toResponse(entity);
+        response.setBankAccountName(accountName);
+        response.setCurrency(currency);
+        response.setCheckbookPrefix(checkbookPrefix);
+        return response;
+    }
+}
